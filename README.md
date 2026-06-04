@@ -24,6 +24,11 @@ npm run generate:data
 npm test
 ```
 
+Optional build-time localization uses OpenRouter only during `npm run generate:data`.
+Set `OPENROUTER_API_KEY` in the environment or as a GitHub Actions repository secret.
+`OPENROUTER_MODEL` defaults to `qwen/qwen3.7-plus`.
+The browser app never calls OpenRouter and no API key is bundled into the frontend.
+
 Generated exports:
 
 - `public/data/baduk-data.json`

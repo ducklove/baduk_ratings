@@ -34,6 +34,9 @@ jobs:
         run: npm ci
 
       - name: Generate data snapshot
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: qwen/qwen3.7-plus
         run: npm run generate:data
 
       - name: Validate

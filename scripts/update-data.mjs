@@ -11,6 +11,8 @@ const prestigeFile = path.join(rootDir, 'data', 'manual', 'tournament_prestige.y
 
 const TARGET_COUNTRIES = ['kr', 'cn', 'jp', 'tw'];
 const MODEL_VERSION = 'baduk-r-0.4.0-game-graph';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'qwen/qwen3.7-plus';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
 const USER_AGENT =
   'baduk_ratings/1.0 (+https://ducklove.github.io/baduk_ratings/; static data snapshot)';
 
@@ -29,6 +31,7 @@ const sourceUrls = {
   cwaTournamentList: 'https://wqapi.cwql.org.cn/game/name/list/page',
   haifong: 'https://www.haifong.org/',
   haifongCalendar: 'https://www.haifong.org/about/calendar',
+  openRouter: 'https://openrouter.ai/',
 };
 
 async function fetchText(url, init = {}) {
@@ -1351,6 +1354,216 @@ function sourceStatus({
   };
 }
 
+function chunk(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function parseJsonFromModelText(value) {
+  const text = String(value ?? '').trim();
+  if (!text) {
+    throw new Error('empty model response');
+  }
+
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fenced ?? text;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf('{');
+    const end = candidate.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error('model response was not JSON');
+    }
+    return JSON.parse(candidate.slice(start, end + 1));
+  }
+}
+
+function normalizeLocalizedText(value, fallback) {
+  const source = value && typeof value === 'object' ? value : {};
+  const clean = (text) => cleanText(String(text ?? ''));
+  return {
+    en: clean(source.en) || fallback,
+    ko: clean(source.ko) || fallback,
+    ja: clean(source.ja) || fallback,
+    zhHans: clean(source.zhHans) || clean(source.zh) || fallback,
+    zhHant: clean(source.zhHant) || clean(source.zh) || fallback,
+  };
+}
+
+function buildTranslationItems(schedule, news) {
+  return [
+    ...schedule.map((event) => ({
+      id: `schedule:${event.id}`,
+      type: 'schedule',
+      title: event.title,
+      tournament: event.tournament ?? '',
+      source_region: event.region,
+      source_name: event.source_name ?? event.source,
+    })),
+    ...news.map((item) => ({
+      id: `news:${item.id}`,
+      type: 'news',
+      title: item.title,
+      summary: item.summary,
+      source_region: item.region,
+      source_name: item.source,
+    })),
+  ].filter((item) => item.title);
+}
+
+async function translateBatchWithOpenRouter(items) {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://ducklove.github.io/baduk_ratings/',
+      'X-Title': 'Baduk-R static data translation',
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      temperature: 0.1,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You translate professional baduk/go schedule and news metadata. Return strict JSON only. Preserve player names, tournament names, ranks, dates, times, source names, and factual meaning. Do not invent missing information.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            target_languages: {
+              en: 'English',
+              ko: 'Korean',
+              ja: 'Japanese',
+              zhHans: 'Simplified Chinese',
+              zhHant: 'Traditional Chinese',
+            },
+            output_schema:
+              'Return {"items":[{"id":"same id","title":{"en":"","ko":"","ja":"","zhHans":"","zhHant":""},"tournament":{"en":"","ko":"","ja":"","zhHans":"","zhHant":""},"summary":{"en":"","ko":"","ja":"","zhHans":"","zhHant":""}}]}. Omit tournament or summary only if the input field is empty.',
+            items,
+          }),
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter request failed with HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const content = payload?.choices?.[0]?.message?.content;
+  const parsed = parseJsonFromModelText(content);
+  if (!Array.isArray(parsed.items)) {
+    throw new Error('OpenRouter response missing items array');
+  }
+
+  return parsed.items;
+}
+
+async function translatePublicContent(schedule, news, generatedAt) {
+  if (!OPENROUTER_API_KEY) {
+    return {
+      schedule,
+      news,
+      status: sourceStatus({
+        source_id: 'openrouter_translation',
+        source_name: 'OpenRouter',
+        country_or_region: 'global',
+        data_type: 'translation',
+        status: 'unavailable',
+        terms_status: 'unknown',
+        source_url: sourceUrls.openRouter,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: 'OPENROUTER_API_KEY is not set. Runtime UI uses original source text only.',
+      }),
+    };
+  }
+
+  const items = buildTranslationItems(schedule, news);
+  const translations = new Map();
+
+  try {
+    for (const batch of chunk(items, 24)) {
+      const translatedItems = await translateBatchWithOpenRouter(batch);
+      for (const item of translatedItems) {
+        if (item?.id) {
+          translations.set(item.id, item);
+        }
+      }
+    }
+
+    return {
+      schedule: schedule.map((event) => {
+        const item = translations.get(`schedule:${event.id}`);
+        if (!item) {
+          return event;
+        }
+
+        return {
+          ...event,
+          localized_title: normalizeLocalizedText(item.title, event.title),
+          ...(event.tournament
+            ? { localized_tournament: normalizeLocalizedText(item.tournament, event.tournament) }
+            : {}),
+        };
+      }),
+      news: news.map((item) => {
+        const translation = translations.get(`news:${item.id}`);
+        if (!translation) {
+          return item;
+        }
+
+        return {
+          ...item,
+          localized_title: normalizeLocalizedText(translation.title, item.title),
+          localized_summary: normalizeLocalizedText(translation.summary, item.summary),
+        };
+      }),
+      status: sourceStatus({
+        source_id: 'openrouter_translation',
+        source_name: 'OpenRouter',
+        country_or_region: 'global',
+        data_type: 'translation',
+        status: translations.size ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.openRouter,
+        fetched_at: generatedAt,
+        confidence: translations.size ? 0.72 : 0.2,
+        item_count: translations.size,
+        notes: `Build-time schedule/news localization via ${OPENROUTER_MODEL}. The frontend never calls OpenRouter.`,
+      }),
+    };
+  } catch (error) {
+    console.warn(`OpenRouter translation skipped: ${error.message}`);
+    return {
+      schedule,
+      news,
+      status: sourceStatus({
+        source_id: 'openrouter_translation',
+        source_name: 'OpenRouter',
+        country_or_region: 'global',
+        data_type: 'translation',
+        status: 'parse_failed',
+        terms_status: 'unknown',
+        source_url: sourceUrls.openRouter,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Build-time translation failed. Runtime UI uses original source text only. Model: ${OPENROUTER_MODEL}.`,
+      }),
+    };
+  }
+}
+
 async function main() {
   const generatedAt = new Date().toISOString();
   const snapshotDate = kstDateString(new Date(generatedAt));
@@ -1432,7 +1645,7 @@ async function main() {
   ]);
 
   const kbaSchedule = parseKbaSchedule(scheduleHtml, generatedAt);
-  const news = parseNews(newsHtml);
+  let news = parseNews(newsHtml);
   const kbaRows = parseKbaRankingRows(kbaRankingHtml);
   const kbaRatings = buildKbaExternalRatings(kbaRows, playersByName, generatedAt);
   unresolvedExternalRatings.push(...kbaRatings.unresolved);
@@ -1669,12 +1882,18 @@ async function main() {
     ...cwaCalendarSchedule,
     ...cwaRegulationSchedule,
   ];
-  const schedule = enrichScheduleEvents(rawSchedule, players, ownRatings, prestigeEntries).sort((left, right) => {
+  let schedule = enrichScheduleEvents(rawSchedule, players, ownRatings, prestigeEntries).sort((left, right) => {
     if (left.date !== right.date) {
       return left.date.localeCompare(right.date);
     }
     return (right.importance_score ?? 0) - (left.importance_score ?? 0);
   });
+
+  console.log('Localizing schedule and news text if OpenRouter is configured...');
+  const translationResult = await translatePublicContent(schedule, news, generatedAt);
+  schedule = translationResult.schedule;
+  news = translationResult.news;
+  sourceStatuses.push(translationResult.status);
 
   const externalRatings = [
     ...buildGoRatingsExternalRatings(players, stats, generatedAt),

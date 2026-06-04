@@ -19,6 +19,14 @@ export type PlayerNameSet = {
   zh: string;
 };
 
+export type LocalizedText = {
+  en: string;
+  ko: string;
+  ja: string;
+  zhHans: string;
+  zhHant: string;
+};
+
 export type HistoryPoint = {
   date: string;
   rating: number;
@@ -74,7 +82,9 @@ export type ScheduleEvent = {
   timeKst: string | null;
   weekday: string;
   title: string;
+  localized_title?: LocalizedText;
   tournament?: string;
+  localized_tournament?: LocalizedText;
   round?: string | null;
   category: 'world' | 'prd' | 'dev' | 'etc' | 'online';
   region: RegionCode;
@@ -97,6 +107,8 @@ export type NewsItem = {
   id: string;
   title: string;
   summary: string;
+  localized_title?: LocalizedText;
+  localized_summary?: LocalizedText;
   date: string;
   region: RegionCode;
   source: string;

@@ -2,6 +2,8 @@
 
 `baduk_ratings` is a static service. Runtime frontend code reads generated JSON only; it does not call external APIs and never calls OpenRouter.
 
+Optional schedule/news localization is performed only at data-generation time when `OPENROUTER_API_KEY` is present. The configured model defaults to `qwen/qwen3.7-plus`, and translated fields are stored in generated JSON as `localized_title`, `localized_tournament`, and `localized_summary`. If the key is absent or the request fails, the app falls back to source text and records the state in `source_status.json`.
+
 ## Ratings
 
 - Baduk-R: internally computed own rating from parsed professional game outcomes. GoRatings score is not used as the Baduk-R input.

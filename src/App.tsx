@@ -31,6 +31,7 @@ import type {
   CountryCode,
   ExternalRating,
   HistoryPoint,
+  LocalizedText,
   NewsItem,
   Player,
   RatingComparison,
@@ -120,6 +121,11 @@ function formatDate(value: string, language: Language) {
     month: 'short',
     day: 'numeric',
   }).format(date);
+}
+
+function localizedText(value: LocalizedText | undefined, fallback: string | null | undefined, language: Language) {
+  const text = value?.[language]?.trim();
+  return text || fallback || '';
 }
 
 function formatFullDate(value: string, language: Language) {
@@ -431,10 +437,18 @@ function FeedPanels({
 
   const tournaments = useMemo(
     () =>
-      Array.from(new Set(schedule.map((event) => event.tournament || event.title.split(':')[0]).filter(Boolean)))
+      Array.from(
+        new Set(
+          schedule
+            .map((event) =>
+              localizedText(event.localized_tournament, event.tournament || event.title.split(':')[0], language),
+            )
+            .filter(Boolean),
+        ),
+      )
         .sort((left, right) => left.localeCompare(right))
         .slice(0, 80),
-    [schedule],
+    [language, schedule],
   );
 
   const visibleSchedule = useMemo(() => {
@@ -445,7 +459,17 @@ function FeedPanels({
       .filter((event) => event.date >= snapshotDate || (event.dateEnd ?? '') >= snapshotDate)
       .filter((event) => scheduleRegion === 'all' || (event.country_or_region ?? event.region) === scheduleRegion)
       .filter((event) => importance === 'all' || event.importance_level === importance)
-      .filter((event) => tournament === 'all' || (event.tournament || event.title).includes(tournament))
+      .filter((event) => {
+        if (tournament === 'all') {
+          return true;
+        }
+        const translatedTournament = localizedText(
+          event.localized_tournament,
+          event.tournament || event.title.split(':')[0],
+          language,
+        );
+        return translatedTournament.includes(tournament) || (event.tournament || event.title).includes(tournament);
+      })
       .filter((event) => !startDate || event.date >= startDate || (event.dateEnd ?? '') >= startDate)
       .filter((event) => !endDate || event.date <= endDate)
       .filter((event) => {
@@ -460,7 +484,11 @@ function FeedPanels({
           return true;
         }
 
-        return `${event.title} ${event.tournament ?? ''} ${event.source}`.toLocaleLowerCase().includes(needle);
+        const translatedTitle = localizedText(event.localized_title, event.title, language);
+        const translatedTournament = localizedText(event.localized_tournament, event.tournament, language);
+        return `${translatedTitle} ${translatedTournament} ${event.title} ${event.tournament ?? ''} ${event.source}`
+          .toLocaleLowerCase()
+          .includes(needle);
       })
       .sort((left, right) => {
         if (left.date !== right.date) {
@@ -476,7 +504,7 @@ function FeedPanels({
         return (right.importance_score ?? 0) - (left.importance_score ?? 0);
       })
       .slice(0, 18);
-  }, [endDate, importance, query, resolvedState, schedule, scheduleRegion, snapshotDate, startDate, tournament]);
+  }, [endDate, importance, language, query, resolvedState, schedule, scheduleRegion, snapshotDate, startDate, tournament]);
 
   const visibleNews = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -485,10 +513,12 @@ function FeedPanels({
         if (!needle) {
           return true;
         }
-        return `${item.title} ${item.summary}`.toLocaleLowerCase().includes(needle);
+        const translatedTitle = localizedText(item.localized_title, item.title, language);
+        const translatedSummary = localizedText(item.localized_summary, item.summary, language);
+        return `${translatedTitle} ${translatedSummary} ${item.title} ${item.summary}`.toLocaleLowerCase().includes(needle);
       })
       .slice(0, 6);
-  }, [news, query]);
+  }, [language, news, query]);
 
   return (
     <section className="lower-grid">
@@ -539,6 +569,8 @@ function FeedPanels({
             const reasons = formatImportanceReasons(event.importance_reasons, t);
             const sourceName = event.source_name ?? event.source;
             const sourceUrl = event.source_url ?? event.sourceUrl;
+            const title = localizedText(event.localized_title, event.title, language);
+            const tournamentName = localizedText(event.localized_tournament, event.tournament, language);
             return (
               <article key={event.id} className={`schedule-row importance-${level}`} title={reasons}>
                 <span className={`category-dot category-${event.category}`}>{scheduleCategoryLabels[event.category]}</span>
@@ -549,11 +581,11 @@ function FeedPanels({
                 <RegionBadge region={region} label={regionLabel(region, t)} compact />
                 <div className="schedule-main">
                   <a href={sourceUrl} target="_blank" rel="noreferrer">
-                    <strong>{event.title}</strong>
+                    <strong>{title}</strong>
                     <ExternalLink size={14} />
                   </a>
                   <small>
-                    {event.tournament ?? sourceName} · {t.sourceProvenance}: {sourceName}
+                    {tournamentName || sourceName} · {t.sourceProvenance}: {sourceName}
                     {event.source_confidence !== undefined ? ` · ${Math.round(event.source_confidence * 100)}%` : ''}
                   </small>
                   <small className="importance-reasons">{reasons}</small>
@@ -576,13 +608,16 @@ function FeedPanels({
         </div>
 
         <div className="news-list">
-          {visibleNews.map((item) => (
-            <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="news-row">
-              <span>{formatDate(item.date, language)}</span>
-              <strong>{item.title}</strong>
-              <small>{item.source}</small>
-            </a>
-          ))}
+          {visibleNews.map((item) => {
+            const title = localizedText(item.localized_title, item.title, language);
+            return (
+              <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="news-row">
+                <span>{formatDate(item.date, language)}</span>
+                <strong>{title}</strong>
+                <small>{item.source}</small>
+              </a>
+            );
+          })}
         </div>
       </div>
 
