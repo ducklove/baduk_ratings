@@ -4,8 +4,8 @@
 
 ## Ratings
 
-- Baduk-R: internally computed own rating from normalized professional game history, recent form, activity handling, and uncertainty.
-- GoRatings: public score retained as an external score with `terms_status: unknown`.
+- Baduk-R: internally computed own rating from parsed professional game outcomes. GoRatings score is not used as the Baduk-R input.
+- GoRatings: public score retained only as a separate external score with `terms_status: unknown`; parsed game-result rows are used as one public historical game-record source for Baduk-R.
 - Chinese Qiyuan Score: official Chinese Weiqi Association ranking API at `https://www.weiqi.org.cn/player`, matched to local `player_id` by normalized English/Chinese aliases. Unmatched players are reported in `external_latest.json`.
 - Korean Baduk Association Score: official monthly ranking page at `https://baduk.or.kr/record/rankingPlayer.asp`, matched by normalized Korean name. Unmatched players are reported in `external_latest.json`.
 

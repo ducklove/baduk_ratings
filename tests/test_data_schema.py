@@ -43,3 +43,13 @@ def test_rating_exports_exist_and_match_snapshot():
     assert len(comparison["comparisons"]) == len(data["ratingComparisons"])
     assert any(item["source_id"] == "cwa_ratings" for item in source_status["sources"])
     assert any(item["source_id"] == "nihon_schedule" for item in source_status["sources"])
+
+
+def test_baduk_r_is_game_graph_model_not_goratings_copy():
+    data = load_json(DATA)
+
+    assert "game-graph" in data["modelVersion"]
+    for comparison in data["ratingComparisons"][:50]:
+        own = comparison["own_rating"]["own_rating"]
+        goratings = comparison["external_ratings"]["goratings"]["rating_value"]
+        assert abs(own - goratings) > 100

@@ -2,9 +2,11 @@
 
 ## Baduk-R
 
-Baduk-R is the primary internal rating used for default ranking and prediction. It starts from normalized professional game history and applies deterministic adjustments for recent form, trend, activity, and uncertainty.
+Baduk-R is the primary internal rating used for default ranking and prediction. It is recomputed from parsed professional game outcomes with an Elo-style game graph model. GoRatings score is not used as the Baduk-R input.
 
 The current model version is stored in generated data as `modelVersion` and in every own rating row as `model_version`.
+
+The model starts every player from the same neutral prior, deduplicates known games, replays wins/losses chronologically, and reports uncertainty from game volume and inactivity. Players with little connected game evidence remain high-uncertainty instead of being silently promoted by an external score.
 
 ## External Ratings
 

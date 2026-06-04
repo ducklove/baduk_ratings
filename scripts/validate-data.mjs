@@ -23,7 +23,7 @@ const scheduleRegions = new Set(data.schedule.map((event) => event.region));
 const externalSources = new Set(data.externalRatings.map((rating) => rating.rating_source_id));
 
 assert(data.schemaVersion === 2, 'Unexpected schema version');
-assert(data.modelVersion?.startsWith('baduk-r-'), 'Missing Baduk-R model version');
+assert(data.modelVersion?.includes('game-graph'), 'Baduk-R must be the game-graph own rating model');
 assert(data.players.length > 500, 'Expected at least 500 Korea/China/Japan/Taiwan players');
 assert(countries.has('kr'), 'Missing Korea players');
 assert(countries.has('cn'), 'Missing China players');
@@ -76,6 +76,15 @@ for (const comparison of data.ratingComparisons) {
     }
   }
 }
+
+const topComparisons = data.ratingComparisons.slice(0, 50);
+const averageTopDifference =
+  topComparisons.reduce(
+    (total, comparison) =>
+      total + Math.abs(comparison.own_rating.own_rating - comparison.external_ratings.goratings.rating_value),
+    0,
+  ) / topComparisons.length;
+assert(averageTopDifference > 300, 'Baduk-R top ranking should not mirror GoRatings score scale');
 
 const ownLatest = await readJson(path.join(ratingsDir, 'own_latest.json'));
 const externalLatest = await readJson(path.join(ratingsDir, 'external_latest.json'));

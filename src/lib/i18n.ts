@@ -112,7 +112,7 @@ export const copy = {
     computedAt: 'Computed',
     methodologyTitle: 'Rating methodology and source limits',
     methodologyOwn:
-      'Baduk-R is the primary internal rating. It starts from normalized professional game history, adds recent-form and activity handling, and keeps an uncertainty estimate.',
+      'Baduk-R is the primary internal rating. It is recomputed from parsed professional game results, not from GoRatings score, and keeps activity and uncertainty estimates.',
     methodologyExternal:
       'External scores are stored separately from Baduk-R. GoRatings, Chinese Qiyuan, and Korean Baduk Association values keep their own dates, links, confidence, and terms status.',
     methodologyMissing:
@@ -234,7 +234,7 @@ export const copy = {
     computedAt: '계산 시각',
     methodologyTitle: '레이팅 방법론과 소스 제한',
     methodologyOwn:
-      'Baduk-R은 기본 자체 레이팅입니다. 정규화한 프로 대국 이력에서 출발해 최근 흐름, 활동성, 불확실성을 함께 반영합니다.',
+      'Baduk-R은 기본 자체 레이팅입니다. GoRatings 점수가 아니라 파싱한 프로 대국 결과 그래프에서 다시 계산하며, 활동성과 불확실성을 함께 반영합니다.',
     methodologyExternal:
       '외부 점수는 Baduk-R과 분리해 보관합니다. GoRatings, 중국기원, 한국기원 값은 날짜, 링크, 신뢰도, 약관 상태를 별도로 유지합니다.',
     methodologyMissing:
@@ -356,7 +356,7 @@ export const copy = {
     computedAt: '計算日時',
     methodologyTitle: 'レーティング方法論とソース制限',
     methodologyOwn:
-      'Baduk-Rは主要な独自レーティングです。正規化したプロ対局履歴を基礎に、直近成績、活動性、不確実性を反映します。',
+      'Baduk-Rは主要な独自レーティングです。GoRatingsスコアではなく、解析したプロ対局結果グラフから再計算し、活動性と不確実性を反映します。',
     methodologyExternal:
       '外部スコアはBaduk-Rとは分けて保存します。GoRatings、中国棋院、韓国棋院の値は日付、リンク、信頼度、規約状態を保持します。',
     methodologyMissing:
@@ -477,7 +477,7 @@ export const copy = {
     computedAt: '计算时间',
     methodologyTitle: '等级分方法和来源限制',
     methodologyOwn:
-      'Baduk-R 是主要自有等级分，基于规范化职业对局历史，并加入近期状态、活跃度和不确定性处理。',
+      'Baduk-R 是主要自有等级分，不使用 GoRatings 分数，而是根据解析出的职业对局结果图重新计算，并处理活跃度和不确定性。',
     methodologyExternal:
       '外部评分与 Baduk-R 分开保存。GoRatings、中国棋院、韩国棋院数值保留各自日期、链接、置信度和条款状态。',
     methodologyMissing:
@@ -598,7 +598,7 @@ export const copy = {
     computedAt: '計算時間',
     methodologyTitle: '等級分方法與來源限制',
     methodologyOwn:
-      'Baduk-R 是主要自有等級分，基於正規化職業對局歷史，並加入近期狀態、活躍度與不確定性處理。',
+      'Baduk-R 是主要自有等級分，不使用 GoRatings 分數，而是根據解析出的職業對局結果圖重新計算，並處理活躍度與不確定性。',
     methodologyExternal:
       '外部分數與 Baduk-R 分開保存。GoRatings、中國棋院、韓國棋院數值保留各自日期、連結、信賴度與條款狀態。',
     methodologyMissing:

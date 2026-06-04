@@ -10,7 +10,7 @@ const outFile = path.join(publicDataDir, 'baduk-data.json');
 const prestigeFile = path.join(rootDir, 'data', 'manual', 'tournament_prestige.yml');
 
 const TARGET_COUNTRIES = ['kr', 'cn', 'jp', 'tw'];
-const MODEL_VERSION = 'baduk-r-0.3.0';
+const MODEL_VERSION = 'baduk-r-0.4.0-game-graph';
 const USER_AGENT =
   'baduk_ratings/1.0 (+https://ducklove.github.io/baduk_ratings/; static data snapshot)';
 
@@ -252,7 +252,7 @@ function parseRecentGames(html) {
     });
   }
 
-  return games.slice(0, 12);
+  return games.sort((left, right) => right.date.localeCompare(left.date));
 }
 
 async function loadPlayerDetail(id) {
@@ -262,10 +262,12 @@ async function loadPlayerDetail(id) {
   ]);
   const json = JSON.parse(historyText);
   const history = sampleHistory(json?.[0]?.values ?? []);
+  const games = parseRecentGames(html);
 
   return {
     ...parsePlayerDataTable(html),
-    recentGames: parseRecentGames(html),
+    recentGames: games.slice(0, 24),
+    modelGames: games,
     history,
     ratingDelta30: ratingDelta(history, 30),
     ratingDelta180: ratingDelta(history, 180),
@@ -698,43 +700,147 @@ function buildGoRatingsExternalRatings(players, stats, fetchedAt) {
   }));
 }
 
+function collectGameGraph(players, playerDetails) {
+  const playerIds = new Set(players.map((player) => player.id));
+  const gamesByKey = new Map();
+
+  for (const [playerId, detail] of Object.entries(playerDetails)) {
+    if (!playerIds.has(playerId)) {
+      continue;
+    }
+
+    for (const game of detail.modelGames ?? detail.recentGames ?? []) {
+      if (!playerIds.has(game.opponentId) || !/^\d{4}-\d{2}-\d{2}$/.test(game.date)) {
+        continue;
+      }
+
+      const blackId = game.color === 'black' ? playerId : game.opponentId;
+      const whiteId = game.color === 'white' ? playerId : game.opponentId;
+      const winnerId = game.result === 'win' ? playerId : game.opponentId;
+      const loserId = game.result === 'win' ? game.opponentId : playerId;
+      const sortedPlayers = [playerId, game.opponentId].sort().join('-');
+      const key = `${game.date}-${sortedPlayers}-${blackId}-${winnerId}`;
+
+      if (!gamesByKey.has(key)) {
+        gamesByKey.set(key, {
+          date: game.date,
+          blackId,
+          whiteId,
+          winnerId,
+          loserId,
+        });
+      }
+    }
+  }
+
+  return [...gamesByKey.values()].sort((left, right) => left.date.localeCompare(right.date));
+}
+
+function runBadukRModel(players, games, cutoffDate = null) {
+  const ratings = new Map(players.map((player) => [player.id, 2500]));
+  const counts = new Map(players.map((player) => [player.id, 0]));
+  const recentCounts = new Map(players.map((player) => [player.id, 0]));
+  const lastPlayed = new Map();
+  const cutoff = cutoffDate ? new Date(`${cutoffDate}T00:00:00+09:00`) : null;
+  const recentCutoff = cutoff
+    ? new Date(cutoff.getTime() - 90 * 86400000)
+    : null;
+
+  for (const game of games) {
+    if (cutoff && new Date(`${game.date}T00:00:00+09:00`) > cutoff) {
+      continue;
+    }
+
+    const winnerRating = ratings.get(game.winnerId);
+    const loserRating = ratings.get(game.loserId);
+    if (winnerRating === undefined || loserRating === undefined) {
+      continue;
+    }
+
+    const winnerGames = counts.get(game.winnerId) ?? 0;
+    const loserGames = counts.get(game.loserId) ?? 0;
+    const expectedWinner = 1 / (1 + 10 ** ((loserRating - winnerRating) / 400));
+    const experienceFactor = 1 + Math.max(0, 24 - Math.min(winnerGames, loserGames)) / 48;
+    const kFactor = 28 * experienceFactor;
+    const delta = kFactor * (1 - expectedWinner);
+
+    ratings.set(game.winnerId, winnerRating + delta);
+    ratings.set(game.loserId, loserRating - delta);
+    counts.set(game.winnerId, winnerGames + 1);
+    counts.set(game.loserId, loserGames + 1);
+    lastPlayed.set(game.winnerId, game.date);
+    lastPlayed.set(game.loserId, game.date);
+
+    if (recentCutoff && new Date(`${game.date}T00:00:00+09:00`) >= recentCutoff) {
+      recentCounts.set(game.winnerId, (recentCounts.get(game.winnerId) ?? 0) + 1);
+      recentCounts.set(game.loserId, (recentCounts.get(game.loserId) ?? 0) + 1);
+    }
+  }
+
+  return { ratings, counts, recentCounts, lastPlayed };
+}
+
+function dateMinusDays(date, days) {
+  const value = new Date(`${date}T00:00:00+09:00`);
+  value.setDate(value.getDate() - days);
+  return toIsoDate(value.getFullYear(), value.getMonth() + 1, value.getDate());
+}
+
 function buildOwnRatings(players, playerDetails, ratingDate) {
+  const games = collectGameGraph(players, playerDetails);
+  const current = runBadukRModel(players, games, ratingDate);
+  const priorModels = new Map(
+    [1, 7, 30, 90, 365].map((days) => [days, runBadukRModel(players, games, dateMinusDays(ratingDate, days))]),
+  );
+  const latestGameDate = games[games.length - 1]?.date ?? ratingDate;
+
   const ownRows = players.map((player) => {
-    const detail = playerDetails[player.id];
-    const gamesTotal = detail?.totalGames ?? 0;
-    const gamesRecent = detail?.recentGames?.length ?? 0;
-    const formScore = player.form.length ? player.form.filter((item) => item === 'W').length / player.form.length : 0.5;
-    const formAdjustment = Math.round((formScore - 0.5) * 44);
-    const trendAdjustment = Math.max(-32, Math.min(32, Math.round((player.ratingDelta180 ?? 0) * 0.18)));
-    const activityPenalty = gamesTotal === 0 ? -25 : gamesRecent === 0 ? -10 : 0;
-    const ownRating = Math.round(player.rating + formAdjustment + trendAdjustment + activityPenalty);
+    const currentRating = current.ratings.get(player.id) ?? 2500;
+    const gamesTotal = current.counts.get(player.id) ?? 0;
+    const gamesRecent = current.recentCounts.get(player.id) ?? 0;
+    const lastPlayed = current.lastPlayed.get(player.id);
+    const inactiveDays = lastPlayed
+      ? Math.max(0, Math.round((new Date(`${latestGameDate}T00:00:00+09:00`) - new Date(`${lastPlayed}T00:00:00+09:00`)) / 86400000))
+      : 999;
     const uncertainty = Math.max(
-      34,
-      Math.min(125, Math.round(95 - Math.min(gamesTotal, 700) * 0.055 - gamesRecent * 1.4 + (detail?.history?.length ? -8 : 16))),
+      55,
+      Math.min(360, Math.round(330 / Math.sqrt(1 + gamesTotal / 5) + Math.min(120, inactiveDays * 0.18))),
     );
-    const activeFlag = gamesRecent > 0 || (player.ratingDelta180 ?? 0) !== 0;
+    const deltaFor = (days) => {
+      const prior = priorModels.get(days);
+      const priorCount = prior?.counts.get(player.id) ?? 0;
+      if (!prior || gamesTotal === 0 || priorCount === 0) {
+        return null;
+      }
+      return Math.round(currentRating - (prior.ratings.get(player.id) ?? 2500));
+    };
 
     return {
       rating_date: ratingDate,
       player_id: player.id,
-      own_rating: ownRating,
+      own_rating: Math.round(currentRating),
       own_rating_uncertainty: uncertainty,
       own_rank: 0,
       own_rank_delta: null,
-      own_rating_delta_1d: null,
-      own_rating_delta_7d: null,
-      own_rating_delta_30d: player.ratingDelta30,
-      own_rating_delta_90d: detail?.history ? ratingDelta(detail.history, 90) : null,
-      own_rating_delta_365d: detail?.history ? ratingDelta(detail.history, 365) : null,
+      own_rating_delta_1d: deltaFor(1),
+      own_rating_delta_7d: deltaFor(7),
+      own_rating_delta_30d: deltaFor(30),
+      own_rating_delta_90d: deltaFor(90),
+      own_rating_delta_365d: deltaFor(365),
       games_total: gamesTotal,
       games_recent: gamesRecent,
-      active_flag: activeFlag,
+      active_flag: gamesRecent > 0,
       model_version: MODEL_VERSION,
       source_rank: player.rank,
     };
   });
 
-  ownRows.sort((left, right) => right.own_rating - left.own_rating);
+  ownRows.sort((left, right) => {
+    if (left.own_rating !== right.own_rating) {
+      return right.own_rating - left.own_rating;
+    }
+    return left.own_rating_uncertainty - right.own_rating_uncertainty;
+  });
 
   return ownRows.map((row, index) => {
     const ownRank = index + 1;
@@ -1589,6 +1695,7 @@ async function main() {
     detail.ownRating = ownByPlayer.get(playerId);
     detail.externalRatings = externalByPlayer.get(playerId) ?? [];
     detail.ratingComparison = comparisonByPlayer.get(playerId);
+    delete detail.modelGames;
   }
 
   const ratingSources = buildRatingSources();

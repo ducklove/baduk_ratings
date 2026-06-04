@@ -7,7 +7,7 @@ Public URL target: <https://ducklove.github.io/baduk_ratings/>
 ## Features
 
 - Integrated Ranking UI in English, Korean, Japanese, Simplified Chinese, and Traditional Chinese.
-- Baduk-R own rating as the default ranking and prediction metric.
+- Baduk-R own rating as the default ranking and prediction metric, recomputed from game outcomes rather than GoRatings score.
 - External rating comparison columns for GoRatings, Chinese Qiyuan, and Korean Baduk Association scores when available.
 - Accessible country/region badges with symbol, text code, and localized labels.
 - Schedule coverage from Korea, Japan, and China with source provenance and deterministic importance classification.
