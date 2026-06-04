@@ -1287,7 +1287,7 @@ main {
 }
 
 .ratings-table {
-  min-width: 1160px;
+  min-width: 1240px;
 }
 
 .ratings-table th:nth-child(1),
@@ -1318,12 +1318,12 @@ main {
 
 .ratings-table th:nth-child(8),
 .ratings-table td:nth-child(8) {
-  width: 170px;
+  width: 238px;
 }
 
 .ratings-table th:nth-child(9),
 .ratings-table td:nth-child(9) {
-  width: 128px;
+  width: 146px;
 }
 
 .rating-stack {
@@ -1357,6 +1357,24 @@ main {
 
 .trend-cell {
   overflow: hidden;
+  white-space: nowrap;
+}
+
+.form-cell {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.form-cell .form-dots {
+  max-width: 188px;
+  overflow: hidden;
+  gap: 3px;
+}
+
+.form-cell .form-dots span {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
 }
 
 .trend-box {

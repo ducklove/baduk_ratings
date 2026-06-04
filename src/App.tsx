@@ -941,7 +941,7 @@ function RatingsApp({ data }: { data: RatingData }) {
                           <td className="numeric hide-tablet">
                             <ExternalRatingCell value={getExternalComparison(comparison, 'korean_baduk')} t={t} />
                           </td>
-                          <td className="hide-mobile">
+                          <td className="hide-mobile form-cell">
                             <FormDots form={player.form} />
                             {score !== null ? <span className="form-score">{Math.round(score * 100)}%</span> : null}
                           </td>
