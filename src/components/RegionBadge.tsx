@@ -7,10 +7,10 @@ type RegionBadgeProps = {
 };
 
 const regionMeta: Record<RegionCode | 'global', { code: string; symbol: string }> = {
-  kr: { code: 'KOR', symbol: '🇰🇷' },
-  cn: { code: 'CHN', symbol: '🇨🇳' },
-  jp: { code: 'JPN', symbol: '🇯🇵' },
-  tw: { code: 'TWN', symbol: '🇹🇼' },
+  kr: { code: 'KR', symbol: '🇰🇷' },
+  cn: { code: 'CN', symbol: '🇨🇳' },
+  jp: { code: 'JP', symbol: '🇯🇵' },
+  tw: { code: 'TW', symbol: '🇹🇼' },
   int: { code: 'INT', symbol: '🌐' },
   unknown: { code: 'UNKNOWN', symbol: '?' },
   global: { code: 'INT', symbol: '🌐' },
@@ -37,9 +37,6 @@ export function RegionBadge({ region, label, compact = false }: RegionBadgeProps
       title={label}
       aria-label={label}
     >
-      <span className="region-symbol" aria-hidden="true">
-        {meta.symbol}
-      </span>
       <span className="region-code">{meta.code}</span>
     </span>
   );

@@ -177,13 +177,13 @@ function regionLabel(region: RegionCode | 'global' | string | null | undefined, 
 function regionShortCode(region: RegionCode | string | null | undefined) {
   switch (region) {
     case 'kr':
-      return 'KOR';
+      return 'KR';
     case 'cn':
-      return 'CHN';
+      return 'CN';
     case 'jp':
-      return 'JPN';
+      return 'JP';
     case 'tw':
-      return 'TWN';
+      return 'TW';
     case 'int':
       return 'INT';
     default:
@@ -1148,24 +1148,30 @@ function RatingsApp({ data }: { data: RatingData }) {
                     {t.recentGames}
                   </h3>
                   <ul className="recent-list">
-                    {(selectedDetail?.recentGames ?? []).slice(0, 5).map((game) => (
-                      <li key={`${game.date}-${game.opponentId}-${game.result}`}>
-                        <span>
-                          {formatDate(game.date, language)}
-                          <small>
-                            <RegionBadge
-                              region={game.opponentCountry}
-                              label={regionLabel(game.opponentCountry, t)}
-                              compact
-                            />
-                            vs {game.opponentName}
-                          </small>
-                        </span>
-                        <strong className={game.result === 'win' ? 'form-win-text' : 'form-loss-text'}>
-                          {game.result === 'win' ? 'W' : 'L'}
-                        </strong>
-                      </li>
-                    ))}
+                    {(selectedDetail?.recentGames ?? []).slice(0, 5).map((game) => {
+                      const opponent = data.players.find((player) => player.id === game.opponentId);
+                      const opponentName = opponent
+                        ? getPlayerDisplayName(opponent, languageMeta.nameKey)
+                        : game.opponentName;
+                      return (
+                        <li key={`${game.date}-${game.opponentId}-${game.result}`}>
+                          <span>
+                            {formatDate(game.date, language)}
+                            <small>
+                              <RegionBadge
+                                region={game.opponentCountry}
+                                label={regionLabel(game.opponentCountry, t)}
+                                compact
+                              />
+                              vs {opponentName}
+                            </small>
+                          </span>
+                          <strong className={game.result === 'win' ? 'form-win-text' : 'form-loss-text'}>
+                            {game.result === 'win' ? 'W' : 'L'}
+                          </strong>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </div>
