@@ -9,6 +9,26 @@
       content="Multilingual professional baduk/go ratings, match prediction, schedule, profiles, and news for Korea, China, Japan, and Taiwan."
     />
     <title>Baduk-R · Professional Baduk Ratings</title>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-MTQXKECZKJ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+
+      gtag('js', new Date());
+      gtag('config', 'G-MTQXKECZKJ', {
+        page_path: window.location.pathname + window.location.search + window.location.hash,
+      });
+
+      window.addEventListener('hashchange', function () {
+        gtag('event', 'page_view', {
+          page_title: document.title,
+          page_location: window.location.href,
+          page_path: window.location.pathname + window.location.search + window.location.hash,
+        });
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
