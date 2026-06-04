@@ -324,11 +324,12 @@ function FormDots({ form }: { form: Player['form'] }) {
   );
 }
 
-function getPlayerOptionLabel(player: Player, language: Language) {
+function getPlayerOptionLabel(player: Player, language: Language, comparison: RatingComparison | undefined) {
   const nameKey = languages.find((item) => item.key === language)?.nameKey ?? 'en';
-  return `#${player.rank} ${getPlayerDisplayName(player, nameKey)} (${regionShortCode(player.country)}) - ${
-    player.rating
-  }`;
+  const own = comparison?.own_rating;
+  const rank = own?.own_rank ?? player.rank;
+  const rating = own?.own_rating ?? player.rating;
+  return `#${rank} ${getPlayerDisplayName(player, nameKey)} (${regionShortCode(player.country)}) - ${formatRating(rating)}`;
 }
 
 function getExternalComparison(comparison: RatingComparison | undefined, source: RatingSourceId) {
@@ -795,7 +796,22 @@ function RatingsApp({ data }: { data: RatingData }) {
   const playerADetail = data.playerDetails[playerA.id];
   const headToHeadGames = (playerADetail?.recentGames ?? []).filter((game) => game.opponentId === playerB.id);
   const playerAH2HWins = headToHeadGames.filter((game) => game.result === 'win').length;
-  const optionPlayers = data.players.slice(0, 240);
+  const optionPlayers = useMemo(
+    () =>
+      [...data.players]
+        .sort((left, right) => {
+          const leftOwn = comparisons.get(left.id)?.own_rating;
+          const rightOwn = comparisons.get(right.id)?.own_rating;
+          const leftRank = leftOwn?.own_rank ?? Number.MAX_SAFE_INTEGER;
+          const rightRank = rightOwn?.own_rank ?? Number.MAX_SAFE_INTEGER;
+          if (leftRank !== rightRank) {
+            return leftRank - rightRank;
+          }
+          return (rightOwn?.own_rating ?? right.rating) - (leftOwn?.own_rating ?? left.rating);
+        })
+        .slice(0, 240),
+    [comparisons, data.players],
+  );
   const snapshotDate = data.generatedAt.slice(0, 10);
   const selectedBirthBadge = formatBirthBadge(selectedDetail?.birthDate, data.generatedAt, language);
   const sourceGameCount = compactNumber(data.ratingStats.games);
@@ -1037,7 +1053,7 @@ function RatingsApp({ data }: { data: RatingData }) {
                   <select value={playerAId} onChange={(event) => setPlayerA(event.target.value)}>
                     {optionPlayers.map((player) => (
                       <option key={player.id} value={player.id}>
-                        {getPlayerOptionLabel(player, language)}
+                        {getPlayerOptionLabel(player, language, comparisons.get(player.id))}
                       </option>
                     ))}
                   </select>
@@ -1048,7 +1064,7 @@ function RatingsApp({ data }: { data: RatingData }) {
                   <select value={playerBId} onChange={(event) => setPlayerB(event.target.value)}>
                     {optionPlayers.map((player) => (
                       <option key={player.id} value={player.id}>
-                        {getPlayerOptionLabel(player, language)}
+                        {getPlayerOptionLabel(player, language, comparisons.get(player.id))}
                       </option>
                     ))}
                   </select>
