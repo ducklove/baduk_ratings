@@ -156,6 +156,34 @@ function ageFromBirthDate(birthDate: string | null, generatedAt: string) {
   return age;
 }
 
+function formatBirthBadge(birthDate: string | null | undefined, generatedAt: string, language: Language) {
+  if (!birthDate) {
+    return null;
+  }
+
+  const year = birthDate.slice(0, 4);
+  if (!/^\d{4}$/.test(year)) {
+    return null;
+  }
+
+  const age = ageFromBirthDate(birthDate, generatedAt);
+
+  if (language === 'ko') {
+    return age === null ? `${year}년생` : `${year}년생 · ${age}세`;
+  }
+  if (language === 'ja') {
+    return age === null ? `${year}年生` : `${year}年生 · ${age}歳`;
+  }
+  if (language === 'zhHans') {
+    return age === null ? `${year}年生` : `${year}年生 · ${age}岁`;
+  }
+  if (language === 'zhHant') {
+    return age === null ? `${year}年生` : `${year}年生 · ${age}歲`;
+  }
+
+  return age === null ? `Born ${year}` : `Born ${year} · ${age}`;
+}
+
 function regionLabel(region: RegionCode | 'global' | string | null | undefined, t: Translation) {
   switch (region) {
     case 'kr':
@@ -241,7 +269,7 @@ function formatImportanceReasons(reasons: string[] | undefined, t: Translation) 
 
 function formatRating(value: number | null | undefined) {
   if (value === null || value === undefined || Number.isNaN(value)) {
-    return '—';
+    return '-';
   }
 
   return Math.round(value).toLocaleString();
@@ -651,7 +679,7 @@ function App() {
   if (error) {
     return (
       <div className="load-state">
-        <strong>baduk_ratings</strong>
+        <strong>Baduk-R</strong>
         <span>{error}</span>
       </div>
     );
@@ -660,7 +688,7 @@ function App() {
   if (!data) {
     return (
       <div className="load-state">
-        <strong>baduk_ratings</strong>
+        <strong>Baduk-R</strong>
         <span>Loading ratings snapshot...</span>
       </div>
     );
@@ -734,7 +762,7 @@ function RatingsApp({ data }: { data: RatingData }) {
   const playerAH2HWins = headToHeadGames.filter((game) => game.result === 'win').length;
   const optionPlayers = data.players.slice(0, 240);
   const snapshotDate = data.generatedAt.slice(0, 10);
-  const age = ageFromBirthDate(selectedDetail?.birthDate ?? null, data.generatedAt);
+  const selectedBirthBadge = formatBirthBadge(selectedDetail?.birthDate, data.generatedAt, language);
   const sourceGameCount = compactNumber(data.ratingStats.games);
 
   const setPlayerA = (id: string) => {
@@ -759,10 +787,8 @@ function RatingsApp({ data }: { data: RatingData }) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#ratings" aria-label="baduk_ratings home">
-          <span>baduk</span>
-          <span className="brand-accent">_</span>
-          <span>ratings</span>
+        <a className="brand" href="#ratings" aria-label="Baduk-R home">
+          Baduk-R
         </a>
 
         <nav className="topnav" aria-label="Primary">
@@ -895,7 +921,6 @@ function RatingsApp({ data }: { data: RatingData }) {
                   <tbody>
                     {tableRows.map((player) => {
                       const name = getPlayerDisplayName(player, languageMeta.nameKey);
-                      const score = resultScore(player.form);
                       const comparison = comparisons.get(player.id);
                       const own = comparison?.own_rating;
                       return (
@@ -936,7 +961,6 @@ function RatingsApp({ data }: { data: RatingData }) {
                           </td>
                           <td className="hide-mobile form-cell">
                             <FormDots form={player.form} />
-                            {score !== null ? <span className="form-score">{Math.round(score * 100)}%</span> : null}
                           </td>
                           <td className="hide-mobile trend-cell">
                             <MiniTrend points={player.history} />
@@ -1070,7 +1094,7 @@ function RatingsApp({ data }: { data: RatingData }) {
                   </h2>
                   <p>
                     <RegionBadge region={selectedPlayer.country} label={regionLabel(selectedPlayer.country, t)} />
-                    {age !== null ? `${age}` : ''}
+                    {selectedBirthBadge ? <span className="birth-chip">{selectedBirthBadge}</span> : null}
                   </p>
                 </div>
                 <div className="profile-rank">
@@ -1090,8 +1114,8 @@ function RatingsApp({ data }: { data: RatingData }) {
                 </div>
                 <div>
                   <span>{t.delta}</span>
-                  <strong className={(selectedPlayer.ratingDelta180 ?? 0) >= 0 ? 'delta-positive' : 'delta-negative'}>
-                    {formatSigned(selectedPlayer.ratingDelta180)}
+                  <strong className={(selectedPlayer.ratingDelta30 ?? 0) >= 0 ? 'delta-positive' : 'delta-negative'}>
+                    {formatSigned(selectedPlayer.ratingDelta30)}
                   </strong>
                 </div>
               </div>
