@@ -18,14 +18,13 @@ import { RegionBadge } from './components/RegionBadge';
 import { copy, languages, type Language } from './lib/i18n';
 import {
   compactNumber,
-  defaultKomiForRuleset,
   filterPlayers,
   formatSigned,
   getHistoryPath,
   getPlayerDisplayName,
   resultScore,
+  seriesWinProbability,
   winProbability,
-  type PredictionRuleset,
   type RankingMode,
 } from './lib/rating';
 import type {
@@ -677,11 +676,10 @@ function RatingsApp({ data }: { data: RatingData }) {
   const [sortMetric, setSortMetric] = useState<RatingMetric>('own');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState(data.players[0].id);
-  const [blackId, setBlackId] = useState(data.players[0].id);
-  const [whiteId, setWhiteId] = useState(
+  const [playerAId, setPlayerAId] = useState(data.players[0].id);
+  const [playerBId, setPlayerBId] = useState(
     data.players.find((player) => player.names.en === 'Ke Jie')?.id ?? data.players[1].id,
   );
-  const [ruleset, setRuleset] = useState<PredictionRuleset>('korean');
 
   const t = copy[language];
   const languageMeta = languages.find((item) => item.key === language) ?? languages[0];
@@ -712,45 +710,44 @@ function RatingsApp({ data }: { data: RatingData }) {
   const selectedComparison = comparisons.get(selectedPlayer.id) ?? selectedDetail?.ratingComparison;
   const selectedOwnRating = selectedComparison?.own_rating ?? selectedDetail?.ownRating;
   const selectedName = getPlayerDisplayName(selectedPlayer, languageMeta.nameKey);
-  const blackPlayer = data.players.find((player) => player.id === blackId) ?? data.players[0];
-  const whitePlayer = data.players.find((player) => player.id === whiteId) ?? data.players[1];
-  const blackComparison = comparisons.get(blackPlayer.id);
-  const whiteComparison = comparisons.get(whitePlayer.id);
-  const blackRating = blackComparison?.own_rating?.own_rating ?? blackPlayer.rating;
-  const whiteRating = whiteComparison?.own_rating?.own_rating ?? whitePlayer.rating;
-  const komiDecision = defaultKomiForRuleset(ruleset);
+  const playerA = data.players.find((player) => player.id === playerAId) ?? data.players[0];
+  const playerB = data.players.find((player) => player.id === playerBId) ?? data.players[1];
+  const playerAComparison = comparisons.get(playerA.id);
+  const playerBComparison = comparisons.get(playerB.id);
+  const playerARating = playerAComparison?.own_rating?.own_rating ?? playerA.rating;
+  const playerBRating = playerBComparison?.own_rating?.own_rating ?? playerB.rating;
   const prediction = winProbability({
-    blackRating,
-    whiteRating,
-    komi: komiDecision.komi,
-    ruleset: komiDecision.ruleset,
+    ratingA: playerARating,
+    ratingB: playerBRating,
   });
-  const ratingDiff = blackRating - whiteRating;
+  const bestOf3Prediction = seriesWinProbability(prediction, 3);
+  const bestOf5Prediction = seriesWinProbability(prediction, 5);
+  const ratingDiff = playerARating - playerBRating;
   const predictionUncertainty = Math.round(
     Math.hypot(
-      blackComparison?.own_rating?.own_rating_uncertainty ?? 90,
-      whiteComparison?.own_rating?.own_rating_uncertainty ?? 90,
+      playerAComparison?.own_rating?.own_rating_uncertainty ?? 90,
+      playerBComparison?.own_rating?.own_rating_uncertainty ?? 90,
     ),
   );
-  const blackDetail = data.playerDetails[blackPlayer.id];
-  const headToHeadGames = (blackDetail?.recentGames ?? []).filter((game) => game.opponentId === whitePlayer.id);
-  const blackH2HWins = headToHeadGames.filter((game) => game.result === 'win').length;
+  const playerADetail = data.playerDetails[playerA.id];
+  const headToHeadGames = (playerADetail?.recentGames ?? []).filter((game) => game.opponentId === playerB.id);
+  const playerAH2HWins = headToHeadGames.filter((game) => game.result === 'win').length;
   const optionPlayers = data.players.slice(0, 240);
   const snapshotDate = data.generatedAt.slice(0, 10);
   const age = ageFromBirthDate(selectedDetail?.birthDate ?? null, data.generatedAt);
   const sourceGameCount = compactNumber(data.ratingStats.games);
 
-  const setBlack = (id: string) => {
-    setBlackId(id);
-    if (id === whiteId) {
-      setWhiteId(data.players.find((player) => player.id !== id)?.id ?? id);
+  const setPlayerA = (id: string) => {
+    setPlayerAId(id);
+    if (id === playerBId) {
+      setPlayerBId(data.players.find((player) => player.id !== id)?.id ?? id);
     }
   };
 
-  const setWhite = (id: string) => {
-    setWhiteId(id);
-    if (id === blackId) {
-      setBlackId(data.players.find((player) => player.id !== id)?.id ?? id);
+  const setPlayerB = (id: string) => {
+    setPlayerBId(id);
+    if (id === playerAId) {
+      setPlayerAId(data.players.find((player) => player.id !== id)?.id ?? id);
     }
   };
 
@@ -981,8 +978,8 @@ function RatingsApp({ data }: { data: RatingData }) {
 
               <div className="predictor-grid">
                 <label>
-                  <span>{t.black}</span>
-                  <select value={blackId} onChange={(event) => setBlack(event.target.value)}>
+                  <span>{t.playerOne}</span>
+                  <select value={playerAId} onChange={(event) => setPlayerA(event.target.value)}>
                     {optionPlayers.map((player) => (
                       <option key={player.id} value={player.id}>
                         {getPlayerOptionLabel(player, language)}
@@ -992,8 +989,8 @@ function RatingsApp({ data }: { data: RatingData }) {
                 </label>
 
                 <label>
-                  <span>{t.white}</span>
-                  <select value={whiteId} onChange={(event) => setWhite(event.target.value)}>
+                  <span>{t.playerTwo}</span>
+                  <select value={playerBId} onChange={(event) => setPlayerB(event.target.value)}>
                     {optionPlayers.map((player) => (
                       <option key={player.id} value={player.id}>
                         {getPlayerOptionLabel(player, language)}
@@ -1001,54 +998,41 @@ function RatingsApp({ data }: { data: RatingData }) {
                     ))}
                   </select>
                 </label>
-
-                <div className="ruleset-toggle" role="tablist" aria-label={t.rules}>
-                  <button
-                    type="button"
-                    className={ruleset === 'korean' ? 'active' : ''}
-                    onClick={() => setRuleset('korean')}
-                  >
-                    {t.koreanRules}
-                  </button>
-                  <button
-                    type="button"
-                    className={ruleset === 'chinese' ? 'active' : ''}
-                    onClick={() => setRuleset('chinese')}
-                  >
-                    {t.chineseRules}
-                  </button>
-                </div>
-
-                <div className="komi-readout">
-                  <span>{t.autoKomi}</span>
-                  <strong>{komiDecision.komi.toFixed(1)}</strong>
-                  <small>{t.rulesetDefault}</small>
-                </div>
               </div>
 
               <div className="probability-box">
                 <div>
                   <strong>{(prediction * 100).toFixed(1)}%</strong>
-                  <span>{getPlayerDisplayName(blackPlayer, languageMeta.nameKey)}</span>
+                  <span>{getPlayerDisplayName(playerA, languageMeta.nameKey)}</span>
                 </div>
                 <div className="probability-track">
                   <span style={{ width: `${prediction * 100}%` }} />
                 </div>
                 <div>
                   <strong>{((1 - prediction) * 100).toFixed(1)}%</strong>
-                  <span>{getPlayerDisplayName(whitePlayer, languageMeta.nameKey)}</span>
+                  <span>{getPlayerDisplayName(playerB, languageMeta.nameKey)}</span>
+                </div>
+              </div>
+
+              <div className="series-grid" aria-label={t.seriesWinProbability}>
+                <div>
+                  <span>{t.singleGame}</span>
+                  <strong>{(prediction * 100).toFixed(1)}%</strong>
+                  <small>{getPlayerDisplayName(playerA, languageMeta.nameKey)}</small>
+                </div>
+                <div>
+                  <span>{t.bestOf3}</span>
+                  <strong>{(bestOf3Prediction * 100).toFixed(1)}%</strong>
+                  <small>{t.needs2Wins}</small>
+                </div>
+                <div>
+                  <span>{t.bestOf5}</span>
+                  <strong>{(bestOf5Prediction * 100).toFixed(1)}%</strong>
+                  <small>{t.needs3Wins}</small>
                 </div>
               </div>
 
               <div className="prediction-details">
-                <div>
-                  <span>{t.rules}</span>
-                  <strong>{ruleset === 'korean' ? t.koreanRules : t.chineseRules}</strong>
-                </div>
-                <div>
-                  <span>{t.komiSource}</span>
-                  <strong>{t.rulesetDefault}</strong>
-                </div>
                 <div>
                   <span>{t.ratingDiff}</span>
                   <strong>{formatSigned(ratingDiff)}</strong>
@@ -1060,14 +1044,14 @@ function RatingsApp({ data }: { data: RatingData }) {
                 <div>
                   <span>{t.recentForm}</span>
                   <strong>
-                    {Math.round((resultScore(blackPlayer.form) ?? 0.5) * 100)}% /{' '}
-                    {Math.round((resultScore(whitePlayer.form) ?? 0.5) * 100)}%
+                    {Math.round((resultScore(playerA.form) ?? 0.5) * 100)}% /{' '}
+                    {Math.round((resultScore(playerB.form) ?? 0.5) * 100)}%
                   </strong>
                 </div>
                 <div>
                   <span>{t.headToHead}</span>
                   <strong>
-                    {headToHeadGames.length ? `${blackH2HWins}-${headToHeadGames.length - blackH2HWins}` : t.noHeadToHead}
+                    {headToHeadGames.length ? `${playerAH2HWins}-${headToHeadGames.length - playerAH2HWins}` : t.noHeadToHead}
                   </strong>
                 </div>
               </div>

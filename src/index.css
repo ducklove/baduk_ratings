@@ -1575,6 +1575,43 @@ main {
   font-weight: 780;
 }
 
+.series-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 16px 14px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+}
+
+.series-grid div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  background: var(--panel);
+}
+
+.series-grid span,
+.series-grid small {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.series-grid strong {
+  color: var(--teal);
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 820;
+  font-variant-numeric: tabular-nums;
+}
+
 .rating-comparison-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1667,6 +1704,7 @@ main {
 
   .schedule-controls,
   .prediction-details,
+  .series-grid,
   .rating-comparison-grid,
   .methodology-grid {
     grid-template-columns: 1fr;

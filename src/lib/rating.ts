@@ -1,8 +1,6 @@
 import type { CountryCode, HistoryPoint, Player } from '../types';
 
 export type RankingMode = 'overall' | 'women' | 'rising';
-export type PredictionRuleset = 'korean' | 'chinese';
-export type KomiSource = 'source_provided' | 'tournament_default' | 'ruleset_default' | 'inferred' | 'unknown';
 
 const countryRank: Record<CountryCode, number> = {
   cn: 1,
@@ -26,29 +24,35 @@ export function formatSigned(value: number | null) {
   return value > 0 ? `+${value}` : String(value);
 }
 
-export function defaultKomiForRuleset(ruleset: PredictionRuleset): {
-  ruleset: PredictionRuleset;
-  komi: number;
-  komi_source: KomiSource;
-} {
-  return {
-    ruleset,
-    komi: ruleset === 'korean' ? 6.5 : 7.5,
-    komi_source: 'ruleset_default',
-  };
+export function winProbability(input: { ratingA: number; ratingB: number }) {
+  const adjustedDiff = input.ratingA - input.ratingB;
+  return 1 / (1 + 10 ** (-adjustedDiff / 400));
 }
 
-export function winProbability(input: {
-  blackRating: number;
-  whiteRating: number;
-  komi: number;
-  ruleset: PredictionRuleset;
-}) {
-  const baselineKomi = input.ruleset === 'korean' ? 6.5 : 7.5;
-  const komiDelta = input.komi - baselineKomi;
-  const limitedKomiEffect = komiDelta * 2.5;
-  const adjustedDiff = input.blackRating - input.whiteRating - limitedKomiEffect;
-  return 1 / (1 + 10 ** (-adjustedDiff / 400));
+export function seriesWinProbability(singleGameProbability: number, bestOf: 1 | 3 | 5) {
+  if (bestOf === 1) {
+    return singleGameProbability;
+  }
+
+  const winsNeeded = Math.floor(bestOf / 2) + 1;
+  let probability = 0;
+
+  for (let wins = winsNeeded; wins <= bestOf; wins += 1) {
+    probability +=
+      combination(bestOf, wins) *
+      singleGameProbability ** wins *
+      (1 - singleGameProbability) ** (bestOf - wins);
+  }
+
+  return probability;
+}
+
+function combination(total: number, choose: number) {
+  let value = 1;
+  for (let index = 1; index <= choose; index += 1) {
+    value = (value * (total - index + 1)) / index;
+  }
+  return value;
 }
 
 export function filterPlayers(

@@ -20,9 +20,10 @@ Each row keeps source name, player name at source, rating value, rank if availab
 
 ## Prediction
 
-Predictions use Baduk-R unless another source is explicitly supported in the future. Users choose only Korean-style or Chinese-style rules. Komi is selected automatically:
+Predictions use Baduk-R unless another source is explicitly supported in the future. The current UI exposes:
 
-- Korean-style: 6.5 by ruleset default unless source or tournament data provides a known value.
-- Chinese-style: 7.5 by ruleset default unless source or tournament data provides a known value.
+- single-game win probability
+- best-of-3 series win probability
+- best-of-5 series win probability
 
-The current model primarily reflects rating difference. Ruleset and komi effects are displayed honestly and only applied where supported by available data.
+The current model primarily reflects rating difference. Color, ruleset, and komi controls are hidden until there is enough reliable historical data to estimate those effects honestly.
