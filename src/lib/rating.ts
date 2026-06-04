@@ -1,6 +1,8 @@
 import type { CountryCode, HistoryPoint, Player } from '../types';
 
 export type RankingMode = 'overall' | 'women' | 'rising';
+export type PredictionRuleset = 'korean' | 'chinese';
+export type KomiSource = 'source_provided' | 'tournament_default' | 'ruleset_default' | 'inferred' | 'unknown';
 
 const countryRank: Record<CountryCode, number> = {
   cn: 1,
@@ -11,16 +13,6 @@ const countryRank: Record<CountryCode, number> = {
 
 export function countryLabel(country: CountryCode) {
   return country.toUpperCase();
-}
-
-export function countryFlag(country: CountryCode) {
-  const flags: Record<CountryCode, string> = {
-    kr: 'KR',
-    cn: 'CN',
-    jp: 'JP',
-    tw: 'TW',
-  };
-  return flags[country];
 }
 
 export function getPlayerDisplayName(player: Player, nameKey: keyof Player['names']) {
@@ -34,15 +26,28 @@ export function formatSigned(value: number | null) {
   return value > 0 ? `+${value}` : String(value);
 }
 
-export function winProbability(
-  blackRating: number,
-  whiteRating: number,
-  komi: number,
-  rules: 'chinese' | 'japanese' | 'korean',
-) {
-  const rulesAdjustment = rules === 'japanese' ? 2 : rules === 'korean' ? 0 : 4;
-  const whiteKomiBonus = komi * rulesAdjustment;
-  const adjustedDiff = blackRating - whiteRating - whiteKomiBonus;
+export function defaultKomiForRuleset(ruleset: PredictionRuleset): {
+  ruleset: PredictionRuleset;
+  komi: number;
+  komi_source: KomiSource;
+} {
+  return {
+    ruleset,
+    komi: ruleset === 'korean' ? 6.5 : 7.5,
+    komi_source: 'ruleset_default',
+  };
+}
+
+export function winProbability(input: {
+  blackRating: number;
+  whiteRating: number;
+  komi: number;
+  ruleset: PredictionRuleset;
+}) {
+  const baselineKomi = input.ruleset === 'korean' ? 6.5 : 7.5;
+  const komiDelta = input.komi - baselineKomi;
+  const limitedKomiEffect = komiDelta * 2.5;
+  const adjustedDiff = input.blackRating - input.whiteRating - limitedKomiEffect;
   return 1 / (1 + 10 ** (-adjustedDiff / 400));
 }
 

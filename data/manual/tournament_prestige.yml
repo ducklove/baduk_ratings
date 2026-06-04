@@ -1,0 +1,77 @@
+- id: lg_cup
+  aliases: ["LG Cup", "LG배", "LG杯", "LG杯世界围棋棋王赛", "LG杯世界圍棋棋王戰"]
+  country_or_region: int
+  prestige_score: 30
+  international: true
+  title_event: true
+  notes: "Major international title event."
+- id: samsung_cup
+  aliases: ["Samsung Cup", "삼성화재배", "三星杯"]
+  country_or_region: int
+  prestige_score: 30
+  international: true
+  title_event: true
+  notes: "Major international title event."
+- id: chunlan_cup
+  aliases: ["Chunlan Cup", "춘란배", "春蘭杯", "春兰杯"]
+  country_or_region: int
+  prestige_score: 28
+  international: true
+  title_event: true
+  notes: "Major international title event."
+- id: lankao_cup
+  aliases: ["Lanke Cup", "란커배", "烂柯杯", "爛柯杯", "衢州烂柯杯", "衢州爛柯杯"]
+  country_or_region: int
+  prestige_score: 28
+  international: true
+  title_event: true
+  notes: "Major international title event."
+- id: mlily_cup
+  aliases: ["MLILY", "몽백합배", "梦百合", "夢百合"]
+  country_or_region: int
+  prestige_score: 26
+  international: true
+  title_event: true
+  notes: "Major international open event."
+- id: kisei
+  aliases: ["棋聖戦", "기성전", "Kisei"]
+  country_or_region: jp
+  prestige_score: 24
+  international: false
+  title_event: true
+  notes: "Japanese major title."
+- id: meijin
+  aliases: ["名人戦", "명인전", "Meijin", "名人"]
+  country_or_region: jp
+  prestige_score: 22
+  international: false
+  title_event: true
+  notes: "Major domestic title."
+- id: honinbo
+  aliases: ["本因坊", "본인방"]
+  country_or_region: jp
+  prestige_score: 22
+  international: false
+  title_event: true
+  notes: "Major Japanese title."
+- id: korean_league
+  aliases: ["KB리그", "한국바둑리그", "Korea Baduk League"]
+  country_or_region: kr
+  prestige_score: 18
+  international: false
+  title_event: false
+  notes: "Top Korean team league."
+- id: chinese_a_league
+  aliases: ["围甲联赛", "圍甲聯賽", "중국 갑조리그", "Chinese A League"]
+  country_or_region: cn
+  prestige_score: 18
+  international: false
+  title_event: false
+  notes: "Top Chinese team league."
+- id: taiwan_mingren
+  aliases: ["名人賽", "台湾名人", "台灣名人", "Taiwan Meijin"]
+  country_or_region: tw
+  prestige_score: 18
+  international: false
+  title_event: true
+  notes: "Taiwan domestic title event."

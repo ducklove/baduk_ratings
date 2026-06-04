@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "generate:data": "node scripts/update-data.mjs",
+    "typecheck": "tsc -b",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "node scripts/validate-data.mjs",

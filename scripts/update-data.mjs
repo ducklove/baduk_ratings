@@ -1,26 +1,43 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
-const outFile = path.join(rootDir, 'public', 'data', 'baduk-data.json');
+const publicDataDir = path.join(rootDir, 'public', 'data');
+const ratingsOutDir = path.join(publicDataDir, 'ratings');
+const outFile = path.join(publicDataDir, 'baduk-data.json');
+const prestigeFile = path.join(rootDir, 'data', 'manual', 'tournament_prestige.yml');
 
 const TARGET_COUNTRIES = ['kr', 'cn', 'jp', 'tw'];
+const MODEL_VERSION = 'baduk-r-0.3.0';
 const USER_AGENT =
   'baduk_ratings/1.0 (+https://ducklove.github.io/baduk_ratings/; static data snapshot)';
 
 const sourceUrls = {
   goratings: 'https://www.goratings.org/en/',
   kbaSchedule: 'https://baduk.or.kr/record/schedule_in.asp',
+  kbaSchedulePublic: 'https://baduk.or.kr/record/schedule.asp',
   kbaNews: 'https://baduk.or.kr/news/report_in.asp',
+  kbaNewsPublic: 'https://baduk.or.kr/news/report.asp',
+  kbaRanking: 'https://baduk.or.kr/record/rankingPlayer_in.asp',
+  kbaRankingPublic: 'https://baduk.or.kr/record/rankingPlayer.asp',
+  nihonSchedule: 'https://www.nihonkiin.or.jp/match/2week.html',
+  cwaPlayer: 'https://www.weiqi.org.cn/player',
+  cwaApi: 'https://wqapi.cwql.org.cn/',
+  cwaCalendar: 'https://wqapi.cwql.org.cn/calendar/game/query',
+  cwaTournamentList: 'https://wqapi.cwql.org.cn/game/name/list/page',
+  haifong: 'https://www.haifong.org/',
+  haifongCalendar: 'https://www.haifong.org/about/calendar',
 };
 
-async function fetchText(url) {
+async function fetchText(url, init = {}) {
   const response = await fetch(url, {
+    ...init,
     headers: {
       'User-Agent': USER_AGENT,
       Accept: 'text/html,application/json,text/plain,*/*',
+      ...(init.headers ?? {}),
     },
   });
 
@@ -32,8 +49,13 @@ async function fetchText(url) {
   return new TextDecoder('utf-8').decode(buffer);
 }
 
+async function fetchJson(url, init = {}) {
+  const text = await fetchText(url, init);
+  return JSON.parse(text);
+}
+
 function stripTags(value) {
-  return value
+  return String(value ?? '')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<p[^>]*><\/p>/gi, '\n')
     .replace(/<[^>]+>/g, '')
@@ -42,15 +64,19 @@ function stripTags(value) {
 }
 
 function decodeHtml(value) {
-  return value
+  return String(value ?? '')
+    .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&ldquo;|&rdquo;/g, '"')
+    .replace(/&lsquo;|&rsquo;/g, "'")
+    .replace(/&mdash;/g, '—')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCharCode(Number.parseInt(code, 16)),
+      String.fromCodePoint(Number.parseInt(code, 16)),
     );
 }
 
@@ -62,11 +88,32 @@ function cleanText(value) {
 }
 
 function normalizeDate(value) {
-  const [year, month, day] = value.split('-').map((part) => Number(part));
-  if (!year || !month || !day) {
-    return value;
+  const text = String(value ?? '').trim();
+  const slashMatch = text.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+  if (slashMatch) {
+    return toIsoDate(Number(slashMatch[1]), Number(slashMatch[2]), Number(slashMatch[3]));
   }
+
+  const [year, month, day] = text.split('-').map((part) => Number(part));
+  if (!year || !month || !day) {
+    return text;
+  }
+  return toIsoDate(year, month, day);
+}
+
+function toIsoDate(year, month, day) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function kstDateString(date = new Date()) {
+  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function weekdayFromDate(date) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    weekday: 'short',
+    timeZone: 'Asia/Seoul',
+  }).format(new Date(`${date}T00:00:00+09:00`));
 }
 
 function parseRatingRows(html) {
@@ -277,7 +324,7 @@ function addRegionalRanks(players) {
   });
 }
 
-function parseSchedule(html) {
+function parseKbaSchedule(html, fetchedAt) {
   const yearText = cleanText(html.match(/<span class="year">([\s\S]*?)<\/span>/)?.[1] ?? '');
   const year = Number(yearText.match(/\d{4}/)?.[0] ?? new Date().getFullYear());
   const monthButton =
@@ -308,13 +355,22 @@ function parseSchedule(html) {
           events.push({
             id: `kba-${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-${events.length + 1}`,
             date: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+            dateEnd: null,
             timeKst: time,
             weekday,
             title,
+            tournament: title.split(/\s{2,}|:/)[0],
+            round: null,
             category,
             region: 'kr',
+            country_or_region: 'kr',
             source: 'Korea Baduk Association',
-            sourceUrl: 'https://baduk.or.kr/record/schedule.asp',
+            sourceUrl: sourceUrls.kbaSchedulePublic,
+            source_name: 'Korea Baduk Association',
+            source_url: sourceUrls.kbaSchedulePublic,
+            fetched_at: fetchedAt,
+            source_confidence: 0.92,
+            event_type: 'game',
           });
         }
       }
@@ -344,35 +400,805 @@ function parseNews(html) {
   return items.slice(0, 12);
 }
 
+function cleanSchedulePlayerName(value) {
+  return cleanText(value)
+    .replace(/[△▲]/g, '')
+    .replace(/\s*(九段|八段|七段|六段|五段|四段|三段|二段|初段|名誉.*|女流.*|本因坊|棋聖|名人|王座|天元|十段|碁聖|扇興杯|快棋王|龍星|女流本|テケ女)$/u, '')
+    .trim();
+}
+
+function inferYearForMonthDay(month, day, snapshotDate) {
+  const [currentYear, currentMonth] = snapshotDate.split('-').map(Number);
+  let year = currentYear;
+  const candidate = new Date(`${toIsoDate(year, month, day)}T00:00:00+09:00`);
+  const snapshot = new Date(`${snapshotDate}T00:00:00+09:00`);
+  const diffDays = (candidate.getTime() - snapshot.getTime()) / 86400000;
+
+  if (currentMonth >= 11 && month <= 2) {
+    year += 1;
+  } else if (currentMonth <= 2 && month >= 11) {
+    year -= 1;
+  } else if (diffDays < -60) {
+    year += 1;
+  }
+
+  return year;
+}
+
+function parseNihonSchedule(html, snapshotDate, fetchedAt) {
+  const tables = [...html.matchAll(/<table[\s\S]*?<\/table>/gi)].map((match) => match[0]);
+  const table = tables[1] ?? tables[0] ?? '';
+  const events = [];
+  let currentDate = null;
+
+  for (const rowMatch of table.matchAll(/<tr[\s\S]*?<\/tr>/gi)) {
+    const row = rowMatch[0];
+    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((cell) => cleanText(cell[1]));
+    const dateMatch = cells[0]?.match(/^(\d{1,2})月(\d{1,2})日$/);
+
+    if (dateMatch) {
+      const month = Number(dateMatch[1]);
+      const day = Number(dateMatch[2]);
+      const year = inferYearForMonthDay(month, day, snapshotDate);
+      currentDate = toIsoDate(year, month, day);
+      continue;
+    }
+
+    if (!currentDate || cells.length < 4) {
+      continue;
+    }
+
+    const tournament = cells[0];
+    const left = cleanSchedulePlayerName(cells[1]);
+    const right = cleanSchedulePlayerName(cells[3]);
+
+    if (!tournament || !left || !right) {
+      continue;
+    }
+
+    events.push({
+      id: `nihon-${currentDate}-${events.length + 1}`,
+      date: currentDate,
+      dateEnd: null,
+      timeKst: null,
+      weekday: weekdayFromDate(currentDate),
+      title: `${tournament}: ${left} vs ${right}`,
+      tournament,
+      round: tournament.split(/\s+/).slice(1).join(' ') || null,
+      category: /予選|豫選/u.test(tournament) ? 'dev' : /本戦|決勝|リーグ|タイトル/u.test(tournament) ? 'prd' : 'etc',
+      region: 'jp',
+      country_or_region: 'jp',
+      source: 'Nihon Ki-in',
+      sourceUrl: sourceUrls.nihonSchedule,
+      source_name: 'Nihon Ki-in',
+      source_url: sourceUrls.nihonSchedule,
+      fetched_at: fetchedAt,
+      source_confidence: 0.82,
+      event_type: 'game',
+      player_names: [left, right],
+    });
+  }
+
+  return events;
+}
+
+function parseKbaRankingRows(html) {
+  const yearText = cleanText(html.match(/<span class="year">([\s\S]*?)<\/span>/)?.[1] ?? '');
+  const year = Number(yearText.match(/\d{4}/)?.[0] ?? new Date().getFullYear());
+  const month =
+    Number(html.match(/<button type="button" class="on" onclick="pageMove_search3\('\d+', '(\d+)'/)?.[1]) ||
+    Number(kstDateString().slice(5, 7));
+  const ratingDate = `${year}-${String(month).padStart(2, '0')}`;
+  const rows = [];
+
+  for (const rowMatch of html.matchAll(/<tr[\s\S]*?<\/tr>/gi)) {
+    const cells = [...rowMatch[0].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => cleanText(cell[1]));
+    const rank = Number(cells[0]);
+    const ratingValue = Number(String(cells[2] ?? '').replace(/,/g, ''));
+
+    if (!rank || !cells[1] || !Number.isFinite(ratingValue)) {
+      continue;
+    }
+
+    rows.push({
+      rank_value: rank,
+      source_player_name: cells[1].replace(/\((남|여)\)/g, '').trim(),
+      rating_value: ratingValue,
+      rating_date: ratingDate,
+    });
+  }
+
+  return rows;
+}
+
+function normalizeName(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .toLocaleLowerCase()
+    .replace(/\((남|여|male|female)\)/gi, '')
+    .replace(/[△▲]/g, '')
+    .replace(/\b(9p|8p|7p|6p|5p|4p|3p|2p|1p)\b/gi, '')
+    .replace(/(九段|八段|七段|六段|五段|四段|三段|二段|初段|단|段|名誉.*|女流.*|本因坊|棋聖|名人|王座|天元|十段|碁聖|扇興杯|快棋王|龍星)$/u, '')
+    .replace(/[\s.,·・'"’()（）[\]{}_\-\\/]/g, '')
+    .trim();
+}
+
+function buildPlayerNameIndex(players) {
+  const index = new Map();
+
+  for (const player of players) {
+    for (const name of [player.name, player.names.en, player.names.ko, player.names.ja, player.names.zh]) {
+      const normalized = normalizeName(name);
+      if (normalized.length >= 2 && !index.has(normalized)) {
+        index.set(normalized, player);
+      }
+    }
+  }
+
+  return index;
+}
+
+function matchPlayerByName(name, index) {
+  const normalized = normalizeName(name);
+  if (!normalized) {
+    return null;
+  }
+
+  return index.get(normalized) ?? null;
+}
+
+function findPlayersInText(text, players) {
+  const matches = new Map();
+  const normalizedText = normalizeName(text);
+
+  for (const player of players) {
+    const names = [player.names.ko, player.names.ja, player.names.zh, player.names.en, player.name]
+      .map((name) => normalizeName(name))
+      .filter((name) => name.length >= 2);
+
+    if (names.some((name) => normalizedText.includes(name))) {
+      matches.set(player.id, player);
+    }
+  }
+
+  return [...matches.values()];
+}
+
+async function fetchCwaRankings(fetchedAt) {
+  const cycleJson = await fetchJson(`${sourceUrls.cwaApi}playerInfo/latest/update/cycle`);
+  const updateCycle = cycleJson?.data;
+  const records = [];
+
+  for (const gender of [1, 2]) {
+    for (let page = 1; page <= 10; page += 1) {
+      const url = new URL(`${sourceUrls.cwaApi}playerInfo/rank/list`);
+      url.searchParams.set('pageSize', '200');
+      url.searchParams.set('page', String(page));
+      url.searchParams.set('playerGender', String(gender));
+      url.searchParams.set('playerStatus', '1');
+      if (updateCycle) {
+        url.searchParams.set('updateCycle', String(updateCycle));
+      }
+
+      const json = await fetchJson(url.href);
+      const pageRecords = json?.data?.records ?? [];
+      records.push(...pageRecords);
+      if (pageRecords.length < 200) {
+        break;
+      }
+    }
+  }
+
+  return {
+    records,
+    updateCycle,
+    fetchedAt,
+  };
+}
+
+function buildCwaExternalRatings(cwaRankings, playersByName) {
+  const external = [];
+  const unresolved = [];
+  const ratingDate = cwaRankings.updateCycle
+    ? `${String(cwaRankings.updateCycle).slice(0, 4)}-${String(cwaRankings.updateCycle).slice(4, 6)}`
+    : null;
+
+  for (const record of cwaRankings.records) {
+    const player =
+      matchPlayerByName(record.playerNameEn, playersByName) ??
+      matchPlayerByName(record.playerName, playersByName);
+
+    if (!player) {
+      unresolved.push({
+        source_name: 'Chinese Weiqi Association',
+        source_player_name: record.playerNameEn || record.playerName,
+        rating_value: Number(record.playerRating) || null,
+        rank_value: Number(record.playerRanking) || null,
+        notes: 'No exact player_id match in current GoRatings-derived player universe.',
+      });
+      continue;
+    }
+
+    external.push({
+      rating_source_id: 'chinese_qiyuan',
+      source_name: 'Chinese Weiqi Association',
+      player_id: player.id,
+      source_player_name: record.playerNameEn || record.playerName,
+      rating_value: Number(record.playerRating) || null,
+      rank_value: Number(record.playerRanking) || null,
+      rating_date: ratingDate,
+      country_or_region: 'cn',
+      source_url: sourceUrls.cwaPlayer,
+      source_confidence: record.playerNameEn ? 0.9 : 0.82,
+      fetched_at: cwaRankings.fetchedAt,
+      notes: `Official CWA update cycle ${record.updateCycle ?? cwaRankings.updateCycle ?? 'unknown'}.`,
+      terms_status: 'unknown',
+      parser_version: 'cwa-rank-v1',
+    });
+  }
+
+  return { external, unresolved };
+}
+
+function buildKbaExternalRatings(kbaRows, playersByName, fetchedAt) {
+  const external = [];
+  const unresolved = [];
+
+  for (const row of kbaRows) {
+    const player = matchPlayerByName(row.source_player_name, playersByName);
+
+    if (!player) {
+      unresolved.push({
+        source_name: 'Korea Baduk Association',
+        source_player_name: row.source_player_name,
+        rating_value: row.rating_value,
+        rank_value: row.rank_value,
+        notes: 'No exact Korean-name player_id match in current player universe.',
+      });
+      continue;
+    }
+
+    external.push({
+      rating_source_id: 'korean_baduk',
+      source_name: 'Korea Baduk Association',
+      player_id: player.id,
+      source_player_name: row.source_player_name,
+      rating_value: row.rating_value,
+      rank_value: row.rank_value,
+      rating_date: row.rating_date,
+      country_or_region: 'kr',
+      source_url: sourceUrls.kbaRankingPublic,
+      source_confidence: 0.9,
+      fetched_at: fetchedAt,
+      notes: 'Official Korean monthly ranking point table.',
+      terms_status: 'unknown',
+      parser_version: 'kba-ranking-v1',
+    });
+  }
+
+  return { external, unresolved };
+}
+
+function buildGoRatingsExternalRatings(players, stats, fetchedAt) {
+  return players.map((player) => ({
+    rating_source_id: 'goratings',
+    source_name: 'GoRatings',
+    player_id: player.id,
+    source_player_name: player.names.en || player.name,
+    rating_value: player.rating,
+    rank_value: player.rank,
+    rating_date: normalizeDate(stats.mostRecentGame) || fetchedAt.slice(0, 10),
+    country_or_region: player.country,
+    source_url: player.profileUrl,
+    source_confidence: 0.82,
+    fetched_at: fetchedAt,
+    notes: 'Existing public GoRatings score retained as an external score, not as Baduk-R.',
+    terms_status: 'unknown',
+    parser_version: 'goratings-list-v1',
+  }));
+}
+
+function buildOwnRatings(players, playerDetails, ratingDate) {
+  const ownRows = players.map((player) => {
+    const detail = playerDetails[player.id];
+    const gamesTotal = detail?.totalGames ?? 0;
+    const gamesRecent = detail?.recentGames?.length ?? 0;
+    const formScore = player.form.length ? player.form.filter((item) => item === 'W').length / player.form.length : 0.5;
+    const formAdjustment = Math.round((formScore - 0.5) * 44);
+    const trendAdjustment = Math.max(-32, Math.min(32, Math.round((player.ratingDelta180 ?? 0) * 0.18)));
+    const activityPenalty = gamesTotal === 0 ? -25 : gamesRecent === 0 ? -10 : 0;
+    const ownRating = Math.round(player.rating + formAdjustment + trendAdjustment + activityPenalty);
+    const uncertainty = Math.max(
+      34,
+      Math.min(125, Math.round(95 - Math.min(gamesTotal, 700) * 0.055 - gamesRecent * 1.4 + (detail?.history?.length ? -8 : 16))),
+    );
+    const activeFlag = gamesRecent > 0 || (player.ratingDelta180 ?? 0) !== 0;
+
+    return {
+      rating_date: ratingDate,
+      player_id: player.id,
+      own_rating: ownRating,
+      own_rating_uncertainty: uncertainty,
+      own_rank: 0,
+      own_rank_delta: null,
+      own_rating_delta_1d: null,
+      own_rating_delta_7d: null,
+      own_rating_delta_30d: player.ratingDelta30,
+      own_rating_delta_90d: detail?.history ? ratingDelta(detail.history, 90) : null,
+      own_rating_delta_365d: detail?.history ? ratingDelta(detail.history, 365) : null,
+      games_total: gamesTotal,
+      games_recent: gamesRecent,
+      active_flag: activeFlag,
+      model_version: MODEL_VERSION,
+      source_rank: player.rank,
+    };
+  });
+
+  ownRows.sort((left, right) => right.own_rating - left.own_rating);
+
+  return ownRows.map((row, index) => {
+    const ownRank = index + 1;
+    const { source_rank: sourceRank, ...publicRow } = row;
+    return {
+      ...publicRow,
+      own_rank: ownRank,
+      own_rank_delta: sourceRank ? sourceRank - ownRank : null,
+    };
+  });
+}
+
+function parseSimpleYamlValue(value) {
+  const trimmed = value.trim();
+  if (trimmed === 'true') {
+    return true;
+  }
+  if (trimmed === 'false') {
+    return false;
+  }
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return trimmed
+      .slice(1, -1)
+      .split(',')
+      .map((item) => item.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean);
+  }
+  return trimmed.replace(/^["']|["']$/g, '');
+}
+
+async function loadTournamentPrestige() {
+  try {
+    const text = await readFile(prestigeFile, 'utf8');
+    const entries = [];
+    let current = null;
+
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) {
+        continue;
+      }
+
+      const start = line.match(/^-\s+id:\s*(.+)$/);
+      if (start) {
+        current = { id: parseSimpleYamlValue(start[1]) };
+        entries.push(current);
+        continue;
+      }
+
+      const field = line.match(/^([a-zA-Z0-9_]+):\s*(.+)$/);
+      if (field && current) {
+        current[field[1]] = parseSimpleYamlValue(field[2]);
+      }
+    }
+
+    return entries;
+  } catch (error) {
+    console.warn(`Unable to load tournament prestige config: ${error.message}`);
+    return [];
+  }
+}
+
+function findPrestige(title, prestigeEntries) {
+  const normalizedTitle = normalizeName(title);
+  return prestigeEntries.find((entry) =>
+    (entry.aliases ?? []).some((alias) => {
+      const normalizedAlias = normalizeName(alias);
+      return normalizedAlias && normalizedTitle.includes(normalizedAlias);
+    }),
+  );
+}
+
+function includesAny(text, patterns) {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+function isInternationalEvent(event, prestige) {
+  if (prestige?.international) {
+    return true;
+  }
+
+  return includesAny(event.title, [
+    /세계|国際|國際|国际|世界|World|LG|Samsung|春蘭|春兰|夢百合|梦百合|烂柯|爛柯|Chunlan|Lanke|MLILY/i,
+  ]);
+}
+
+function enrichScheduleEvents(events, players, ownRatings, prestigeEntries) {
+  const ownRankByPlayer = new Map(ownRatings.map((row) => [row.player_id, row.own_rank]));
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  const playerNameIndex = buildPlayerNameIndex(players);
+
+  return events.map((event) => {
+    const explicitNames = event.player_names ?? [];
+    const matchedFromNames = explicitNames
+      .map((name) => matchPlayerByName(name, playerNameIndex))
+      .filter(Boolean);
+    const matchedFromText = findPlayersInText(event.title, players);
+    const matchedPlayers = new Map();
+
+    for (const player of [...matchedFromNames, ...matchedFromText]) {
+      matchedPlayers.set(player.id, player);
+    }
+
+    const unresolvedPlayers = explicitNames.filter((name) => !matchPlayerByName(name, playerNameIndex));
+    const resolvedPlayerIds = [...matchedPlayers.keys()];
+    const prestige = findPrestige(event.title, prestigeEntries);
+    let score = 0;
+    const reasons = [];
+
+    if (isInternationalEvent(event, prestige)) {
+      score += 25;
+      reasons.push('international_event');
+    }
+
+    if (prestige?.title_event || includesAny(event.title, [/결승|決勝|决赛|決賽|Final|final|챔피언|冠军|冠軍|타이틀|タイトル|title/i])) {
+      score += 30;
+      reasons.push('title_match_or_final');
+    }
+
+    if (includesAny(event.title, [/준결승|準決勝|半决赛|半決賽|semifinal|도전자|挑戦者|league-deciding|결정/i])) {
+      score += 20;
+      reasons.push('semifinal_or_deciding_round');
+    }
+
+    if (includesAny(event.title, [/본선|本戦|本赛|本賽|main/i])) {
+      score += 15;
+      reasons.push('main_tournament');
+    }
+
+    if (includesAny(event.title, [/예선|予選|预选|預選|prelim/i])) {
+      score -= 10;
+      reasons.push('preliminary');
+    }
+
+    const ranks = resolvedPlayerIds
+      .map((id) => ownRankByPlayer.get(id) ?? playerById.get(id)?.rank)
+      .filter((rank) => Number.isFinite(rank));
+    if (ranks.some((rank) => rank <= 10)) {
+      score += 25;
+      reasons.push('top10_player');
+    } else if (ranks.some((rank) => rank <= 30)) {
+      score += 15;
+      reasons.push('top30_player');
+    }
+    if (ranks.length >= 2 && ranks.every((rank) => rank <= 100)) {
+      score += 10;
+      reasons.push('both_top100');
+    }
+
+    if (prestige?.prestige_score) {
+      score += Number(prestige.prestige_score);
+      reasons.push('tournament_prestige');
+    }
+
+    if ((event.source_confidence ?? 1) < 0.75) {
+      score -= 5;
+      reasons.push('low_source_confidence');
+    }
+
+    if (unresolvedPlayers.length) {
+      score -= Math.min(20, 5 * unresolvedPlayers.length);
+      reasons.push('unresolved_players');
+    } else if (event.event_type === 'tournament' && !resolvedPlayerIds.length) {
+      score -= 5;
+    }
+
+    const importanceLevel = score >= 55 ? 'high' : score >= 25 ? 'medium' : 'low';
+    const { player_names: _playerNames, ...publicEvent } = event;
+
+    return {
+      ...publicEvent,
+      importance_score: score,
+      importance_level: importanceLevel,
+      importance_reasons: [...new Set(reasons)],
+      resolved_players: resolvedPlayerIds,
+      unresolved_players: unresolvedPlayers,
+    };
+  });
+}
+
+function parseChineseDateRanges(text) {
+  const normalized = text.replace(/\s+/g, '');
+  const ranges = [];
+  const seen = new Set();
+
+  const add = (start, end = start, label = '') => {
+    if (!start || !end) {
+      return;
+    }
+    const key = `${start}-${end}`;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    ranges.push({ start, end, label: label || (start === end ? start : `${start}~${end}`) });
+  };
+
+  const rangePattern = /(20\d{2})年(\d{1,2})月(\d{1,2})日?\s*(?:至|到|-|—|－|~|～)\s*(?:(\d{1,2})月)?(\d{1,2})日/g;
+  for (const match of normalized.matchAll(rangePattern)) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const startDay = Number(match[3]);
+    const endMonth = Number(match[4] ?? match[2]);
+    const endDay = Number(match[5]);
+    add(toIsoDate(year, month, startDay), toIsoDate(year, endMonth, endDay), match[0]);
+  }
+
+  const listedDaysPattern = /(20\d{2})年(\d{1,2})月(\d{1,2})、(\d{1,2})(?:、(\d{1,2}))?日/g;
+  for (const match of normalized.matchAll(listedDaysPattern)) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    for (const day of [match[3], match[4], match[5]].filter(Boolean)) {
+      add(toIsoDate(year, month, Number(day)), toIsoDate(year, month, Number(day)), match[0]);
+    }
+  }
+
+  const singlePattern = /(20\d{2})年(\d{1,2})月(\d{1,2})日/g;
+  for (const match of normalized.matchAll(singlePattern)) {
+    add(toIsoDate(Number(match[1]), Number(match[2]), Number(match[3])), undefined, match[0]);
+  }
+
+  return ranges;
+}
+
+async function fetchCwaCalendarEvents(snapshotDate, fetchedAt) {
+  const months = [];
+  const [year, month] = snapshotDate.split('-').map(Number);
+  for (let offset = 0; offset < 4; offset += 1) {
+    const date = new Date(Date.UTC(year, month - 1 + offset, 1));
+    months.push(`${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+
+  const events = [];
+
+  for (const queryValue of months) {
+    const json = await fetchJson(sourceUrls.cwaCalendar, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queryType: 'month', queryValue, gameTypes: [], returnType: 1 }),
+    });
+
+    for (const item of json?.data ?? []) {
+      const date = normalizeDate(item.gameDate ?? item.date ?? item.startDate ?? item.battleDate ?? '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        continue;
+      }
+      const title = cleanText(item.gameName ?? item.gameFullName ?? item.title ?? item.name ?? 'Chinese Weiqi Association event');
+      events.push({
+        id: `cwa-calendar-${date}-${events.length + 1}`,
+        date,
+        dateEnd: normalizeDate(item.endDate ?? '') || null,
+        timeKst: null,
+        weekday: weekdayFromDate(date),
+        title,
+        tournament: title,
+        round: cleanText(item.roundName ?? item.round ?? '') || null,
+        category: 'prd',
+        region: 'cn',
+        country_or_region: 'cn',
+        source: 'Chinese Weiqi Association',
+        sourceUrl: sourceUrls.cwaPlayer,
+        source_name: 'Chinese Weiqi Association',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: fetchedAt,
+        source_confidence: 0.82,
+        event_type: 'game',
+      });
+    }
+  }
+
+  return events;
+}
+
+async function fetchCwaTournamentRegulationEvents(snapshotDate, fetchedAt) {
+  const json = await fetchJson(sourceUrls.cwaTournamentList, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ pageNo: '1', pageSize: '60' }),
+  });
+  const records = json.records ?? json.data?.records ?? [];
+  const events = [];
+
+  for (const record of records) {
+    if (record.gradeRating !== 1) {
+      continue;
+    }
+
+    const title = cleanText(record.gameFullName ?? record.gameName ?? '');
+    const regulation = cleanText(record.gameRegulation ?? '');
+    const ranges = parseChineseDateRanges(regulation)
+      .filter((range) => range.end >= snapshotDate)
+      .slice(0, 2);
+
+    for (const range of ranges) {
+      const eventDate = range.start <= snapshotDate && range.end >= snapshotDate ? snapshotDate : range.start;
+      if (eventDate < snapshotDate) {
+        continue;
+      }
+
+      events.push({
+        id: `cwa-reg-${record.id}-${eventDate}-${events.length + 1}`,
+        date: eventDate,
+        dateEnd: range.end,
+        timeKst: null,
+        weekday: weekdayFromDate(eventDate),
+        title: `${title} (${range.label})`,
+        tournament: title,
+        round: null,
+        category: isInternationalEvent({ title }, null) ? 'world' : 'prd',
+        region: 'cn',
+        country_or_region: 'cn',
+        source: 'Chinese Weiqi Association',
+        sourceUrl: sourceUrls.cwaPlayer,
+        source_name: 'Chinese Weiqi Association',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: fetchedAt,
+        source_confidence: 0.68,
+        event_type: 'tournament',
+      });
+    }
+  }
+
+  return events;
+}
+
+async function fetchTaiwanScheduleStatus() {
+  const html = await fetchText(sourceUrls.haifongCalendar);
+  const text = cleanText(html);
+  const hasStructuredCalendar = /20\d{2}[./-]\d{1,2}[./-]\d{1,2}.*(賽|棋|戰|赛|日程|行事曆)/u.test(text);
+  return {
+    itemCount: hasStructuredCalendar ? 1 : 0,
+    notes: hasStructuredCalendar
+      ? 'Calendar page responded, but parser has not promoted Taiwan items to public schedule yet.'
+      : 'Calendar page responded but no structured upcoming professional schedule rows were found.',
+  };
+}
+
+function buildRatingSources() {
+  return [
+    {
+      rating_source_id: 'own',
+      source_name: 'Baduk-R',
+      display_name: 'Baduk-R',
+      source_url: null,
+      terms_status: 'allowed',
+      notes: 'Internally computed own rating from normalized professional game history.',
+    },
+    {
+      rating_source_id: 'goratings',
+      source_name: 'GoRatings',
+      display_name: 'GoRatings Score',
+      source_url: sourceUrls.goratings,
+      terms_status: 'unknown',
+      notes: 'External public score retained separately from Baduk-R.',
+    },
+    {
+      rating_source_id: 'chinese_qiyuan',
+      source_name: 'Chinese Weiqi Association',
+      display_name: 'Chinese Qiyuan Score',
+      source_url: sourceUrls.cwaPlayer,
+      terms_status: 'unknown',
+      notes: 'Official CWA ranking points when matched to player_id.',
+    },
+    {
+      rating_source_id: 'korean_baduk',
+      source_name: 'Korea Baduk Association',
+      display_name: 'Korean Baduk Association Score',
+      source_url: sourceUrls.kbaRankingPublic,
+      terms_status: 'unknown',
+      notes: 'Official Korean ranking points when matched to player_id.',
+    },
+  ];
+}
+
+function missingComparison(sourceName, sourceUrl, region, termsStatus = 'unknown') {
+  return {
+    source_name: sourceName,
+    rating_value: null,
+    rank_value: null,
+    rating_date: null,
+    country_or_region: region,
+    source_url: sourceUrl,
+    source_confidence: null,
+    fetched_at: null,
+    notes: 'No matched rating value in this snapshot.',
+    terms_status: termsStatus,
+    status: termsStatus === 'unavailable' ? 'unavailable' : 'missing',
+  };
+}
+
+function buildRatingComparisons(players, ownRatings, externalRatings) {
+  const ownByPlayer = new Map(ownRatings.map((row) => [row.player_id, row]));
+  const externalByPlayer = new Map();
+
+  for (const rating of externalRatings) {
+    const bucket = externalByPlayer.get(rating.player_id) ?? {};
+    bucket[rating.rating_source_id] = {
+      source_name: rating.source_name,
+      rating_value: rating.rating_value,
+      rank_value: rating.rank_value,
+      rating_date: rating.rating_date,
+      country_or_region: rating.country_or_region,
+      source_url: rating.source_url,
+      source_confidence: rating.source_confidence,
+      fetched_at: rating.fetched_at,
+      notes: rating.notes,
+      terms_status: rating.terms_status,
+      status: rating.terms_status === 'unknown' ? 'terms_unknown' : 'available',
+    };
+    externalByPlayer.set(rating.player_id, bucket);
+  }
+
+  return players.map((player) => {
+    const external = externalByPlayer.get(player.id) ?? {};
+    return {
+      player_id: player.id,
+      own_rating: ownByPlayer.get(player.id) ?? null,
+      external_ratings: {
+        goratings:
+          external.goratings ??
+          missingComparison('GoRatings', player.profileUrl, player.country, 'unknown'),
+        chinese_qiyuan:
+          external.chinese_qiyuan ??
+          missingComparison('Chinese Weiqi Association', sourceUrls.cwaPlayer, 'cn', 'unknown'),
+        korean_baduk:
+          external.korean_baduk ??
+          missingComparison('Korea Baduk Association', sourceUrls.kbaRankingPublic, 'kr', 'unknown'),
+      },
+    };
+  });
+}
+
 function buildSourceHub() {
   return [
     {
       region: 'global',
       name: 'GoRatings',
-      url: 'https://www.goratings.org/en/',
+      url: sourceUrls.goratings,
       kind: 'ratings',
-      note: 'WHR-based professional rating list with game records and player histories.',
+      note: 'WHR-style professional rating list with game records and player histories.',
     },
     {
       region: 'kr',
       name: 'Korea Baduk Association',
       url: 'https://www.baduk.or.kr/',
-      kind: 'schedule-news',
-      note: 'Official Korean professional schedule, results, news, rankings, and player records.',
+      kind: 'schedule-news-ratings',
+      note: 'Official Korean professional schedule, news, rankings, and player records.',
     },
     {
       region: 'cn',
       name: 'Chinese Weiqi Association',
-      url: 'https://www.weiqi.org.cn/en/',
-      kind: 'federation',
-      note: 'Official Chinese weiqi federation portal.',
+      url: 'https://www.weiqi.org.cn/',
+      kind: 'schedule-ratings',
+      note: 'Official Chinese weiqi federation portal and ranking API.',
     },
     {
       region: 'jp',
       name: 'Nihon Ki-in',
       url: 'https://www.nihonkiin.or.jp/',
-      kind: 'federation',
-      note: 'Official Japan Go association portal for tournaments, players, and announcements.',
+      kind: 'schedule-federation',
+      note: 'Official Japan Go association portal for tournaments and match schedules.',
     },
     {
       region: 'jp',
@@ -384,14 +1210,47 @@ function buildSourceHub() {
     {
       region: 'tw',
       name: 'HaiFong Go Association',
-      url: 'https://www.haifong.org/',
-      kind: 'federation',
+      url: sourceUrls.haifong,
+      kind: 'federation-news',
       note: 'Taiwan professional Go operations reference source.',
     },
   ];
 }
 
+function sourceStatus({
+  source_id,
+  source_name,
+  country_or_region,
+  data_type,
+  status,
+  terms_status = 'unknown',
+  source_url,
+  fetched_at,
+  confidence,
+  item_count,
+  notes,
+}) {
+  return {
+    source_id,
+    source_name,
+    country_or_region,
+    data_type,
+    status,
+    terms_status,
+    source_url,
+    fetched_at,
+    confidence,
+    item_count,
+    notes,
+  };
+}
+
 async function main() {
+  const generatedAt = new Date().toISOString();
+  const snapshotDate = kstDateString(new Date(generatedAt));
+  const sourceStatuses = [];
+  const unresolvedExternalRatings = [];
+
   console.log('Fetching GoRatings rating list...');
   const [ratingHtml, localizedNames] = await Promise.all([
     fetchText(sourceUrls.goratings),
@@ -413,6 +1272,21 @@ async function main() {
         },
         profileUrl: `https://www.goratings.org/en/players/${row.id}.html`,
       })),
+  );
+  sourceStatuses.push(
+    sourceStatus({
+      source_id: 'goratings_rating_list',
+      source_name: 'GoRatings',
+      country_or_region: 'global',
+      data_type: 'ratings',
+      status: 'terms_unknown',
+      terms_status: 'unknown',
+      source_url: sourceUrls.goratings,
+      fetched_at: generatedAt,
+      confidence: 0.82,
+      item_count: players.length,
+      notes: 'Existing public GoRatings score is retained as an external score with terms_status unknown.',
+    }),
   );
 
   const detailIds = selectDetailIds(players);
@@ -440,28 +1314,335 @@ async function main() {
     }
   }
 
-  console.log('Fetching KBA schedule and news...');
-  const [scheduleHtml, newsHtml] = await Promise.all([
+  const playersByName = buildPlayerNameIndex(players);
+  const ownRatings = buildOwnRatings(players, playerDetails, snapshotDate);
+  const ownByPlayer = new Map(ownRatings.map((row) => [row.player_id, row]));
+
+  console.log('Fetching schedule, news, and federation ratings...');
+  const [scheduleHtml, newsHtml, kbaRankingHtml] = await Promise.all([
     fetchText(sourceUrls.kbaSchedule),
     fetchText(sourceUrls.kbaNews),
+    fetchText(sourceUrls.kbaRanking),
   ]);
 
+  const kbaSchedule = parseKbaSchedule(scheduleHtml, generatedAt);
+  const news = parseNews(newsHtml);
+  const kbaRows = parseKbaRankingRows(kbaRankingHtml);
+  const kbaRatings = buildKbaExternalRatings(kbaRows, playersByName, generatedAt);
+  unresolvedExternalRatings.push(...kbaRatings.unresolved);
+  sourceStatuses.push(
+    sourceStatus({
+      source_id: 'kba_schedule',
+      source_name: 'Korea Baduk Association',
+      country_or_region: 'kr',
+      data_type: 'schedule',
+      status: kbaSchedule.length ? 'available' : 'available_empty',
+      terms_status: 'unknown',
+      source_url: sourceUrls.kbaSchedulePublic,
+      fetched_at: generatedAt,
+      confidence: 0.92,
+      item_count: kbaSchedule.length,
+      notes: 'Official KBA monthly schedule page.',
+    }),
+    sourceStatus({
+      source_id: 'kba_ratings',
+      source_name: 'Korea Baduk Association',
+      country_or_region: 'kr',
+      data_type: 'external_ratings',
+      status: kbaRatings.external.length ? 'available' : 'available_empty',
+      terms_status: 'unknown',
+      source_url: sourceUrls.kbaRankingPublic,
+      fetched_at: generatedAt,
+      confidence: 0.9,
+      item_count: kbaRatings.external.length,
+      notes: 'Official KBA monthly ranking points; unmatched names are reported separately.',
+    }),
+    sourceStatus({
+      source_id: 'kba_news',
+      source_name: 'Korea Baduk Association',
+      country_or_region: 'kr',
+      data_type: 'news',
+      status: news.length ? 'available' : 'available_empty',
+      terms_status: 'unknown',
+      source_url: sourceUrls.kbaNewsPublic,
+      fetched_at: generatedAt,
+      confidence: 0.9,
+      item_count: news.length,
+      notes: 'Official KBA news feed snapshot.',
+    }),
+  );
+
+  let nihonSchedule = [];
+  try {
+    const nihonHtml = await fetchText(sourceUrls.nihonSchedule);
+    nihonSchedule = parseNihonSchedule(nihonHtml, snapshotDate, generatedAt);
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'nihon_schedule',
+        source_name: 'Nihon Ki-in',
+        country_or_region: 'jp',
+        data_type: 'schedule',
+        status: nihonSchedule.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.nihonSchedule,
+        fetched_at: generatedAt,
+        confidence: 0.82,
+        item_count: nihonSchedule.length,
+        notes: 'Official Nihon Ki-in two-week result/schedule page. Planned games are parsed from the upcoming table.',
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'nihon_schedule',
+        source_name: 'Nihon Ki-in',
+        country_or_region: 'jp',
+        data_type: 'schedule',
+        status: 'parse_failed',
+        terms_status: 'unknown',
+        source_url: sourceUrls.nihonSchedule,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to parse Nihon Ki-in schedule: ${error.message}`,
+      }),
+    );
+  }
+
+  let cwaRatings = { external: [], unresolved: [] };
+  let cwaCalendarSchedule = [];
+  let cwaRegulationSchedule = [];
+  try {
+    const cwaRankingSnapshot = await fetchCwaRankings(generatedAt);
+    cwaRatings = buildCwaExternalRatings(cwaRankingSnapshot, playersByName);
+    unresolvedExternalRatings.push(...cwaRatings.unresolved);
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_ratings',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'external_ratings',
+        status: cwaRatings.external.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: 0.9,
+        item_count: cwaRatings.external.length,
+        notes: `Official CWA rating API; update cycle ${cwaRankingSnapshot.updateCycle ?? 'unknown'}.`,
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_ratings',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'external_ratings',
+        status: 'unavailable',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to fetch CWA ratings: ${error.message}`,
+      }),
+    );
+  }
+
+  try {
+    cwaCalendarSchedule = await fetchCwaCalendarEvents(snapshotDate, generatedAt);
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_calendar',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'schedule',
+        status: cwaCalendarSchedule.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: cwaCalendarSchedule.length ? 0.82 : 0.55,
+        item_count: cwaCalendarSchedule.length,
+        notes: cwaCalendarSchedule.length
+          ? 'Official CWA calendar API returned schedule items.'
+          : 'Official CWA calendar API responded but returned no current month schedule rows.',
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_calendar',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'schedule',
+        status: 'unavailable',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to fetch CWA calendar API: ${error.message}`,
+      }),
+    );
+  }
+
+  try {
+    cwaRegulationSchedule = await fetchCwaTournamentRegulationEvents(snapshotDate, generatedAt);
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_tournament_regulations',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'schedule',
+        status: cwaRegulationSchedule.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: cwaRegulationSchedule.length ? 0.68 : 0.4,
+        item_count: cwaRegulationSchedule.length,
+        notes: 'Official CWA tournament regulation pages are parsed for dated tournament events when the calendar API is empty.',
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_tournament_regulations',
+        source_name: 'Chinese Weiqi Association',
+        country_or_region: 'cn',
+        data_type: 'schedule',
+        status: 'parse_failed',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaPlayer,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to parse CWA tournament regulations: ${error.message}`,
+      }),
+    );
+  }
+
+  try {
+    const taiwanStatus = await fetchTaiwanScheduleStatus();
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'haifong_calendar',
+        source_name: 'HaiFong Go Association',
+        country_or_region: 'tw',
+        data_type: 'schedule',
+        status: taiwanStatus.itemCount ? 'parse_failed' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.haifongCalendar,
+        fetched_at: generatedAt,
+        confidence: taiwanStatus.itemCount ? 0.45 : 0.25,
+        item_count: 0,
+        notes: taiwanStatus.notes,
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'haifong_calendar',
+        source_name: 'HaiFong Go Association',
+        country_or_region: 'tw',
+        data_type: 'schedule',
+        status: 'unavailable',
+        terms_status: 'unknown',
+        source_url: sourceUrls.haifongCalendar,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to fetch HaiFong calendar: ${error.message}`,
+      }),
+    );
+  }
+
+  const prestigeEntries = await loadTournamentPrestige();
+  const rawSchedule = [
+    ...kbaSchedule,
+    ...nihonSchedule,
+    ...cwaCalendarSchedule,
+    ...cwaRegulationSchedule,
+  ];
+  const schedule = enrichScheduleEvents(rawSchedule, players, ownRatings, prestigeEntries).sort((left, right) => {
+    if (left.date !== right.date) {
+      return left.date.localeCompare(right.date);
+    }
+    return (right.importance_score ?? 0) - (left.importance_score ?? 0);
+  });
+
+  const externalRatings = [
+    ...buildGoRatingsExternalRatings(players, stats, generatedAt),
+    ...cwaRatings.external,
+    ...kbaRatings.external,
+  ];
+  const ratingComparisons = buildRatingComparisons(players, ownRatings, externalRatings);
+  const comparisonByPlayer = new Map(ratingComparisons.map((row) => [row.player_id, row]));
+  const externalByPlayer = new Map();
+
+  for (const rating of externalRatings) {
+    const bucket = externalByPlayer.get(rating.player_id) ?? [];
+    bucket.push(rating);
+    externalByPlayer.set(rating.player_id, bucket);
+  }
+
+  for (const [playerId, detail] of Object.entries(playerDetails)) {
+    detail.ownRating = ownByPlayer.get(playerId);
+    detail.externalRatings = externalByPlayer.get(playerId) ?? [];
+    detail.ratingComparison = comparisonByPlayer.get(playerId);
+  }
+
+  const ratingSources = buildRatingSources();
+  const sourceStatusSnapshot = {
+    schema_version: 1,
+    generated_at: generatedAt,
+    sources: sourceStatuses,
+  };
+
   const data = {
-    schemaVersion: 1,
-    generatedAt: new Date().toISOString(),
+    schemaVersion: 2,
+    generatedAt,
+    modelVersion: MODEL_VERSION,
     ratingStats: stats,
     players,
     playerDetails,
-    schedule: parseSchedule(scheduleHtml),
-    news: parseNews(newsHtml),
+    schedule,
+    news,
     sourceHub: buildSourceHub(),
+    ownRatings,
+    externalRatings,
+    ratingComparisons,
+    ratingSources,
+    sourceStatus: sourceStatusSnapshot,
   };
 
-  await mkdir(path.dirname(outFile), { recursive: true });
-  await writeFile(outFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  await mkdir(publicDataDir, { recursive: true });
+  await mkdir(ratingsOutDir, { recursive: true });
+  await Promise.all([
+    writeFile(outFile, `${JSON.stringify(data, null, 2)}\n`, 'utf8'),
+    writeFile(
+      path.join(ratingsOutDir, 'own_latest.json'),
+      `${JSON.stringify({ schema_version: 1, generated_at: generatedAt, model_version: MODEL_VERSION, own_ratings: ownRatings }, null, 2)}\n`,
+      'utf8',
+    ),
+    writeFile(
+      path.join(ratingsOutDir, 'external_latest.json'),
+      `${JSON.stringify({ schema_version: 1, generated_at: generatedAt, external_ratings: externalRatings, unresolved: unresolvedExternalRatings }, null, 2)}\n`,
+      'utf8',
+    ),
+    writeFile(
+      path.join(ratingsOutDir, 'source_status.json'),
+      `${JSON.stringify(sourceStatusSnapshot, null, 2)}\n`,
+      'utf8',
+    ),
+    writeFile(
+      path.join(ratingsOutDir, 'comparison_latest.json'),
+      `${JSON.stringify({ schema_version: 1, generated_at: generatedAt, rating_sources: ratingSources, comparisons: ratingComparisons }, null, 2)}\n`,
+      'utf8',
+    ),
+  ]);
 
   console.log(
-    `Wrote ${players.length} players, ${Object.keys(playerDetails).length} profiles, ${data.schedule.length} schedule events, ${data.news.length} news items.`,
+    `Wrote ${players.length} players, ${Object.keys(playerDetails).length} profiles, ${schedule.length} schedule events, ${news.length} news items, ${ownRatings.length} own ratings, ${externalRatings.length} external ratings.`,
   );
 }
 
