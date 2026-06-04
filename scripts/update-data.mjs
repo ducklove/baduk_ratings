@@ -25,10 +25,15 @@ const sourceUrls = {
   kbaRanking: 'https://baduk.or.kr/record/rankingPlayer_in.asp',
   kbaRankingPublic: 'https://baduk.or.kr/record/rankingPlayer.asp',
   nihonSchedule: 'https://www.nihonkiin.or.jp/match/2week.html',
+  nihonColumns: 'https://www.nihonkiin.or.jp/etc/',
+  nihonColumnAtom: 'https://www.nihonkiin.or.jp/etc/atom.xml',
   cwaPlayer: 'https://www.weiqi.org.cn/player',
+  cwaNews: 'https://www.weiqi.org.cn/news',
   cwaApi: 'https://wqapi.cwql.org.cn/',
   cwaCalendar: 'https://wqapi.cwql.org.cn/calendar/game/query',
   cwaTournamentList: 'https://wqapi.cwql.org.cn/game/name/list/page',
+  cwaNewsClassify: 'https://wqapi.cwql.org.cn/news/classify/channel/list?newsChannel=web',
+  cwaNewsList: 'https://wqapi.cwql.org.cn/news/publish/list',
   haifong: 'https://www.haifong.org/',
   haifongCalendar: 'https://www.haifong.org/about/calendar',
   openRouter: 'https://openrouter.ai/',
@@ -92,6 +97,11 @@ function cleanText(value) {
 
 function normalizeDate(value) {
   const text = String(value ?? '').trim();
+  const eastAsianMatch = text.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+  if (eastAsianMatch) {
+    return toIsoDate(Number(eastAsianMatch[1]), Number(eastAsianMatch[2]), Number(eastAsianMatch[3]));
+  }
+
   const slashMatch = text.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
   if (slashMatch) {
     return toIsoDate(Number(slashMatch[1]), Number(slashMatch[2]), Number(slashMatch[3]));
@@ -399,10 +409,183 @@ function parseNews(html) {
       region: 'kr',
       source: 'Korea Baduk Association',
       url: `https://baduk.or.kr/news/report_view.asp?news_no=${match[1]}`,
+      content_type: 'news',
+      curation_score: 8,
+      curation_reason: ['official_korean_news'],
     });
   }
 
   return items.slice(0, 12);
+}
+
+function newsCurationReasons({ title, summary = '', category = '', source = '' }) {
+  const text = `${title} ${summary} ${category} ${source}`;
+  const reasons = [];
+  let score = 0;
+
+  if (/コラム|囲碁ライター|칼럼|column/i.test(text)) {
+    score += 55;
+    reasons.push('column_source');
+  }
+  if (/媒体报道|メディア|media/i.test(text)) {
+    score += 30;
+    reasons.push('media_report');
+  }
+  if (/专访|專訪|访谈|訪談|対談|인터뷰|interview|评论|評論|評|観る碁|探訪|观察|觀察|分析|해설|review|analysis/i.test(text)) {
+    score += 24;
+    reasons.push('analysis_or_interview');
+  }
+  if (/柯洁|丁浩|辜梓豪|申真谞|一力遼|一力辽|井山|芝野|藤沢|藤泽|上野|国家队|世界戦|世界赛|女流|女子/i.test(text)) {
+    score += 12;
+    reasons.push('notable_players_or_events');
+  }
+  if (/文化|歴史|史|棋士|프로기사|棋手|物語|故事|人物|未来|미래|普及/i.test(text)) {
+    score += 8;
+    reasons.push('feature_context');
+  }
+  if (/竞赛规程|競賽規程|规程|規程|报名|報名|通知|公示|名单|名單|赛果|賽果|成绩|成績|日程|補足|补充/i.test(text)) {
+    score -= 28;
+    reasons.push('routine_notice_penalty');
+  }
+
+  return { score, reasons };
+}
+
+function applyNewsCuration(item, baseScore = 0) {
+  const result = newsCurationReasons({
+    title: item.title,
+    summary: item.summary,
+    category: item.category,
+    source: item.source,
+  });
+
+  return {
+    ...item,
+    curation_score: baseScore + result.score,
+    curation_reason: [...new Set([...(item.curation_reason ?? []), ...result.reasons])],
+  };
+}
+
+function sortNewsItems(items) {
+  return [...items].sort((left, right) => {
+    const leftScore = left.curation_score ?? 0;
+    const rightScore = right.curation_score ?? 0;
+    if (leftScore !== rightScore) {
+      return rightScore - leftScore;
+    }
+    return String(right.date).localeCompare(String(left.date));
+  });
+}
+
+function parseNihonColumnFeed(xml) {
+  const items = [];
+
+  for (const entryMatch of xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)) {
+    const entry = entryMatch[1];
+    const title = cleanText(entry.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '');
+    const summary = cleanText(entry.match(/<summary>([\s\S]*?)<\/summary>/)?.[1] ?? '');
+    const published = cleanText(entry.match(/<published>([\s\S]*?)<\/published>/)?.[1] ?? '');
+    const updated = cleanText(entry.match(/<updated>([\s\S]*?)<\/updated>/)?.[1] ?? '');
+    const category =
+      cleanText(entry.match(/<primary>([\s\S]*?)<\/primary>/)?.[1] ?? '') ||
+      cleanText(entry.match(/<category[^>]*term="([^"]+)"/)?.[1] ?? '');
+    const url = decodeHtml(entry.match(/<link[^>]+rel="alternate"[^>]+href="([^"]+)"/)?.[1] ?? '');
+
+    if (!title || !url) {
+      continue;
+    }
+
+    const slug = url.split('/').filter(Boolean).pop()?.replace(/\.html$/i, '') ?? String(items.length + 1);
+    items.push(
+      applyNewsCuration(
+        {
+          id: `nihon-column-${slug}`,
+          title,
+          summary,
+          date: normalizeDate(published) || updated.slice(0, 10),
+          region: 'jp',
+          source: 'Nihon Ki-in Column',
+          url,
+          category,
+          content_type: 'column',
+          curation_reason: ['nihon_official_column_feed'],
+        },
+        45,
+      ),
+    );
+  }
+
+  return sortNewsItems(items).slice(0, 10);
+}
+
+async function fetchNihonColumns() {
+  const xml = await fetchText(sourceUrls.nihonColumnAtom);
+  return parseNihonColumnFeed(xml);
+}
+
+async function fetchCwaNewsPage(params) {
+  const json = await fetchJson(sourceUrls.cwaNewsList, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params),
+  });
+
+  return json?.data?.records ?? json?.records ?? [];
+}
+
+async function fetchCwaEditorialNews() {
+  const classifyJson = await fetchJson(sourceUrls.cwaNewsClassify);
+  const classifications = classifyJson?.data ?? [];
+  const mediaClassifyNo = classifications.find((item) => item.classifyName === '媒体报道')?.classifyNo;
+  const officialInfoNo = classifications.find((item) => item.classifyName === '官网资讯')?.classifyNo;
+  const professionalNo = classifications.find((item) => item.classifyName === '职业新闻')?.classifyNo;
+  const records = [];
+
+  if (mediaClassifyNo) {
+    records.push(...(await fetchCwaNewsPage({ pageNo: '1', pageSize: '12', classifyNo: mediaClassifyNo })));
+  }
+
+  for (const classifyNo of [officialInfoNo, professionalNo].filter(Boolean)) {
+    records.push(...(await fetchCwaNewsPage({ pageNo: '1', pageSize: '12', classifyNo })));
+  }
+
+  records.push(...(await fetchCwaNewsPage({ pageNo: '1', pageSize: '36' })));
+
+  const seen = new Set();
+  const items = [];
+
+  for (const record of records) {
+    const publishNo = record.newsPublishNo ?? record.newsNo;
+    const title = cleanText(record.newsTitle ?? '');
+    if (!publishNo || !title || seen.has(publishNo)) {
+      continue;
+    }
+    seen.add(publishNo);
+
+    const category = cleanText(record.newsClassify1Name ?? '');
+    const baseScore = category === '媒体报道' ? 34 : category === '官网资讯' ? 10 : category === '职业新闻' ? 8 : 0;
+    const item = applyNewsCuration(
+      {
+        id: `cwa-news-${publishNo}`,
+        title,
+        summary: cleanText(record.newsAbstract ?? ''),
+        date: normalizeDate(record.newsDate ?? ''),
+        region: 'cn',
+        source: category === '媒体报道' ? 'Chinese Weiqi Association Media' : 'Chinese Weiqi Association',
+        url: `https://www.weiqi.org.cn/news/details/${publishNo}`,
+        category,
+        content_type: category === '媒体报道' ? 'media_report' : 'news',
+        curation_reason: [`cwa_${category || 'news'}`],
+      },
+      baseScore,
+    );
+
+    if ((item.curation_score ?? 0) > 0) {
+      items.push(item);
+    }
+  }
+
+  return sortNewsItems(items).slice(0, 10);
 }
 
 function cleanSchedulePlayerName(value) {
@@ -1728,6 +1911,42 @@ async function main() {
     );
   }
 
+  let nihonColumnNews = [];
+  try {
+    nihonColumnNews = await fetchNihonColumns();
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'nihon_columns',
+        source_name: 'Nihon Ki-in Column',
+        country_or_region: 'jp',
+        data_type: 'news',
+        status: nihonColumnNews.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.nihonColumns,
+        fetched_at: generatedAt,
+        confidence: 0.9,
+        item_count: nihonColumnNews.length,
+        notes: 'Official Nihon Ki-in column Atom feed. Column and feature articles are preferred over routine news.',
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'nihon_columns',
+        source_name: 'Nihon Ki-in Column',
+        country_or_region: 'jp',
+        data_type: 'news',
+        status: 'parse_failed',
+        terms_status: 'unknown',
+        source_url: sourceUrls.nihonColumns,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to parse Nihon Ki-in column feed: ${error.message}`,
+      }),
+    );
+  }
+
   let cwaRatings = { external: [], unresolved: [] };
   let cwaCalendarSchedule = [];
   let cwaRegulationSchedule = [];
@@ -1764,6 +1983,42 @@ async function main() {
         confidence: 0,
         item_count: 0,
         notes: `Unable to fetch CWA ratings: ${error.message}`,
+      }),
+    );
+  }
+
+  let cwaEditorialNews = [];
+  try {
+    cwaEditorialNews = await fetchCwaEditorialNews();
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_editorial_news',
+        source_name: 'Chinese Weiqi Association Editorial News',
+        country_or_region: 'cn',
+        data_type: 'news',
+        status: cwaEditorialNews.length ? 'available' : 'available_empty',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaNews,
+        fetched_at: generatedAt,
+        confidence: cwaEditorialNews.length ? 0.82 : 0.35,
+        item_count: cwaEditorialNews.length,
+        notes: 'Official CWA news API. Media reports, interviews, analysis, player-focused, and feature-like articles are preferred over routine notices.',
+      }),
+    );
+  } catch (error) {
+    sourceStatuses.push(
+      sourceStatus({
+        source_id: 'cwa_editorial_news',
+        source_name: 'Chinese Weiqi Association Editorial News',
+        country_or_region: 'cn',
+        data_type: 'news',
+        status: 'parse_failed',
+        terms_status: 'unknown',
+        source_url: sourceUrls.cwaNews,
+        fetched_at: generatedAt,
+        confidence: 0,
+        item_count: 0,
+        notes: `Unable to parse CWA editorial news: ${error.message}`,
       }),
     );
   }
@@ -1888,6 +2143,7 @@ async function main() {
     }
     return (right.importance_score ?? 0) - (left.importance_score ?? 0);
   });
+  news = sortNewsItems([...news, ...nihonColumnNews, ...cwaEditorialNews]).slice(0, 36);
 
   console.log('Localizing schedule and news text if OpenRouter is configured...');
   const translationResult = await translatePublicContent(schedule, news, generatedAt);

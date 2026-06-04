@@ -264,6 +264,16 @@ function importanceLabel(level: ImportanceLevel | undefined, t: Translation) {
   return t.importanceLow;
 }
 
+function newsKindLabel(item: NewsItem, t: Translation) {
+  if (item.content_type === 'column') {
+    return t.columnArticle;
+  }
+  if (item.content_type === 'media_report') {
+    return t.mediaReport;
+  }
+  return t.newsArticle;
+}
+
 function formatImportanceReasons(reasons: string[] | undefined, t: Translation) {
   const labels = (reasons ?? [])
     .map((reason) => reasonLabelKeys[reason])
@@ -615,7 +625,9 @@ function FeedPanels({
               <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="news-row">
                 <span>{formatDate(item.date, language)}</span>
                 <strong>{title}</strong>
-                <small>{item.source}</small>
+                <small>
+                  {item.source} · {newsKindLabel(item, t)}
+                </small>
               </a>
             );
           })}

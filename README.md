@@ -11,6 +11,7 @@ Public URL target: <https://ducklove.github.io/baduk_ratings/>
 - External rating comparison columns for GoRatings, Chinese Qiyuan, and Korean Baduk Association scores when available.
 - Accessible country/region badges with symbol, text code, and localized labels.
 - Schedule coverage from Korea, Japan, and China with source provenance and deterministic importance classification.
+- News/column feed that prioritizes official columns, media reports, interviews, and feature-like baduk articles from Korea, Japan, and China.
 - Match predictor with single-game, best-of-3, and best-of-5 probabilities from Baduk-R rating difference.
 - Player profile panel with rating comparison, rating history, recent games, official links, and source profile.
 - Source hub and `source_status.json` for unavailable, empty, or legally unclear sources.

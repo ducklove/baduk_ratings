@@ -28,6 +28,14 @@ Every schedule item includes source name, URL, fetch timestamp, confidence, regi
 
 The source health snapshot is exported to `public/data/ratings/source_status.json`.
 
+## News And Columns
+
+- Korea: Korea Baduk Association official report feed.
+- Japan: Nihon Ki-in official column Atom feed. Column and feature articles are prioritized over routine notices.
+- China: Chinese Weiqi Association public news API. Media reports, interviews, analysis, player-focused stories, and feature-like articles are prioritized over notices, regulations, and raw results.
+
+Generated news rows include `content_type`, `curation_score`, and `curation_reason`. The frontend labels rows as news, column, or media report, and build-time OpenRouter localization translates titles and summaries into every supported UI language when `OPENROUTER_API_KEY` is configured.
+
 ## Exports
 
 - `public/data/baduk-data.json`

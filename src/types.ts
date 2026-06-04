@@ -113,6 +113,10 @@ export type NewsItem = {
   region: RegionCode;
   source: string;
   url: string;
+  category?: string;
+  content_type?: 'news' | 'column' | 'media_report';
+  curation_score?: number;
+  curation_reason?: string[];
 };
 
 export type SourceHubItem = {
