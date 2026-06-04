@@ -703,7 +703,7 @@ function RatingsApp({ data }: { data: RatingData }) {
     return [...filtered].sort((left, right) => comparePlayersByMetric(left, right, comparisons, sortMetric));
   }, [comparisons, country, data.players, mode, query, sortMetric]);
 
-  const tableRows = filteredPlayers.slice(0, 12);
+  const tableRows = filteredPlayers.slice(0, 220);
   const selectedPlayer =
     data.players.find((player) => player.id === selectedId) ?? filteredPlayers[0] ?? data.players[0];
   const selectedDetail = data.playerDetails[selectedPlayer.id];
@@ -879,7 +879,6 @@ function RatingsApp({ data }: { data: RatingData }) {
                     <tr>
                       <th className="col-rank">{t.rank}</th>
                       <th className="col-player">{t.player}</th>
-                      <th className="col-region">{t.country}</th>
                       <th className="numeric col-rating">{t.ownRating}</th>
                       <th className="numeric col-rating hide-tablet">{t.goRatingsScore}</th>
                       <th className="numeric col-rating hide-tablet">{t.chineseQiyuanScore}</th>
@@ -916,9 +915,6 @@ function RatingsApp({ data }: { data: RatingData }) {
                                 <small>{player.names.en}</small>
                               </span>
                             </button>
-                          </td>
-                          <td>
-                            <RegionBadge region={player.country} label={regionLabel(player.country, t)} />
                           </td>
                           <td className="numeric rating-number">
                             <RatingValueCell
