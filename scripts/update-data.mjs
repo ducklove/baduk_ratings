@@ -16,7 +16,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
 const OPENROUTER_TRANSLATION_BATCH_SIZE = readPositiveIntEnv('OPENROUTER_TRANSLATION_BATCH_SIZE', 4);
 const OPENROUTER_TRANSLATION_TIMEOUT_MS = readPositiveIntEnv('OPENROUTER_TRANSLATION_TIMEOUT_MS', 45000);
 const OPENROUTER_NEWS_TRANSLATION_LIMIT = readPositiveIntEnv('OPENROUTER_NEWS_TRANSLATION_LIMIT', 36);
-const OPENROUTER_SCHEDULE_TRANSLATION_LIMIT = readPositiveIntEnv('OPENROUTER_SCHEDULE_TRANSLATION_LIMIT', 48);
+const OPENROUTER_SCHEDULE_TRANSLATION_LIMIT = readNonNegativeIntEnv('OPENROUTER_SCHEDULE_TRANSLATION_LIMIT', 48);
 const USER_AGENT =
   'baduk_ratings/1.0 (+https://ducklove.github.io/baduk_ratings/; static data snapshot)';
 
@@ -46,6 +46,11 @@ const sourceUrls = {
 function readPositiveIntEnv(name, fallback) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function readNonNegativeIntEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
 }
 
 async function fetchText(url, init = {}) {

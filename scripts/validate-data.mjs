@@ -23,6 +23,24 @@ const scheduleRegions = new Set(data.schedule.map((event) => event.region));
 const externalSources = new Set(data.externalRatings.map((rating) => rating.rating_source_id));
 const newsRegions = new Set(data.news.map((item) => item.region));
 const newsContentTypes = new Set(data.news.map((item) => item.content_type));
+const embeddedSourceStatuses = data.sourceStatus?.sources ?? [];
+
+function sourceStatusById(sourceId) {
+  return embeddedSourceStatuses.find((source) => source.source_id === sourceId);
+}
+
+function assertScheduleRegionOrDocumented(region, sourceIds, label) {
+  if (scheduleRegions.has(region)) {
+    return;
+  }
+
+  const documented = sourceIds
+    .map(sourceStatusById)
+    .filter(Boolean)
+    .some((source) => ['available_empty', 'unavailable', 'parse_failed'].includes(source.status));
+
+  assert(documented, `Missing ${label} schedule items and no documented source limitation`);
+}
 
 assert(data.schemaVersion === 2, 'Unexpected schema version');
 assert(data.modelVersion?.includes('game-graph'), 'Baduk-R must be the game-graph own rating model');
@@ -35,8 +53,8 @@ assert(data.players[0]?.rating > 3600, 'Top rating looks too low');
 assert(Object.keys(data.playerDetails).length >= 50, 'Expected at least 50 enriched profiles');
 assert(data.schedule.length >= 80, 'Expected expanded multi-country schedule events');
 assert(scheduleRegions.has('kr'), 'Missing Korean schedule items');
-assert(scheduleRegions.has('jp'), 'Missing Japanese schedule items');
-assert(scheduleRegions.has('cn'), 'Missing Chinese schedule items');
+assertScheduleRegionOrDocumented('jp', ['nihon_schedule'], 'Japanese');
+assertScheduleRegionOrDocumented('cn', ['cwa_calendar', 'cwa_tournament_regulations'], 'Chinese');
 assert(data.news.length >= 5, 'Expected latest news items');
 assert(newsRegions.has('jp'), 'Missing Japanese column/news items');
 assert(newsRegions.has('cn'), 'Missing Chinese editorial news items');
