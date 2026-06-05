@@ -13,6 +13,10 @@ const TARGET_COUNTRIES = ['kr', 'cn', 'jp', 'tw'];
 const MODEL_VERSION = 'baduk-r-0.4.0-game-graph';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'qwen/qwen3.7-plus';
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim();
+const OPENROUTER_TRANSLATION_BATCH_SIZE = readPositiveIntEnv('OPENROUTER_TRANSLATION_BATCH_SIZE', 4);
+const OPENROUTER_TRANSLATION_TIMEOUT_MS = readPositiveIntEnv('OPENROUTER_TRANSLATION_TIMEOUT_MS', 45000);
+const OPENROUTER_NEWS_TRANSLATION_LIMIT = readPositiveIntEnv('OPENROUTER_NEWS_TRANSLATION_LIMIT', 36);
+const OPENROUTER_SCHEDULE_TRANSLATION_LIMIT = readPositiveIntEnv('OPENROUTER_SCHEDULE_TRANSLATION_LIMIT', 48);
 const USER_AGENT =
   'baduk_ratings/1.0 (+https://ducklove.github.io/baduk_ratings/; static data snapshot)';
 
@@ -38,6 +42,11 @@ const sourceUrls = {
   haifongCalendar: 'https://www.haifong.org/about/calendar',
   openRouter: 'https://openrouter.ai/',
 };
+
+function readPositiveIntEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
 
 async function fetchText(url, init = {}) {
   const response = await fetch(url, {
@@ -1545,6 +1554,22 @@ function chunk(items, size) {
   return chunks;
 }
 
+async function fetchWithTimeout(url, init = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function parseJsonFromModelText(value) {
   const text = String(value ?? '').trim();
   if (!text) {
@@ -1578,17 +1603,14 @@ function normalizeLocalizedText(value, fallback) {
   };
 }
 
-function buildTranslationItems(schedule, news) {
+function buildTranslationItems(schedule, news, snapshotDate) {
+  const newsItems = news.slice(0, OPENROUTER_NEWS_TRANSLATION_LIMIT);
+  const scheduleItems = schedule
+    .filter((event) => event.date >= snapshotDate || (event.dateEnd ?? '') >= snapshotDate)
+    .slice(0, OPENROUTER_SCHEDULE_TRANSLATION_LIMIT);
+
   return [
-    ...schedule.map((event) => ({
-      id: `schedule:${event.id}`,
-      type: 'schedule',
-      title: event.title,
-      tournament: event.tournament ?? '',
-      source_region: event.region,
-      source_name: event.source_name ?? event.source,
-    })),
-    ...news.map((item) => ({
+    ...newsItems.map((item) => ({
       id: `news:${item.id}`,
       type: 'news',
       title: item.title,
@@ -1596,11 +1618,19 @@ function buildTranslationItems(schedule, news) {
       source_region: item.region,
       source_name: item.source,
     })),
+    ...scheduleItems.map((event) => ({
+      id: `schedule:${event.id}`,
+      type: 'schedule',
+      title: event.title,
+      tournament: event.tournament ?? '',
+      source_region: event.region,
+      source_name: event.source_name ?? event.source,
+    })),
   ].filter((item) => item.title);
 }
 
 async function translateBatchWithOpenRouter(items) {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
@@ -1611,6 +1641,8 @@ async function translateBatchWithOpenRouter(items) {
     body: JSON.stringify({
       model: OPENROUTER_MODEL,
       temperature: 0.1,
+      max_tokens: 4000,
+      response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
@@ -1634,7 +1666,7 @@ async function translateBatchWithOpenRouter(items) {
         },
       ],
     }),
-  });
+  }, OPENROUTER_TRANSLATION_TIMEOUT_MS);
 
   if (!response.ok) {
     throw new Error(`OpenRouter request failed with HTTP ${response.status}`);
@@ -1671,16 +1703,24 @@ async function translatePublicContent(schedule, news, generatedAt) {
     };
   }
 
-  const items = buildTranslationItems(schedule, news);
+  const snapshotDate = generatedAt.slice(0, 10);
+  const items = buildTranslationItems(schedule, news, snapshotDate);
   const translations = new Map();
+  let failedBatch = null;
 
   try {
-    for (const batch of chunk(items, 24)) {
-      const translatedItems = await translateBatchWithOpenRouter(batch);
-      for (const item of translatedItems) {
-        if (item?.id) {
-          translations.set(item.id, item);
+    for (const batch of chunk(items, OPENROUTER_TRANSLATION_BATCH_SIZE)) {
+      try {
+        const translatedItems = await translateBatchWithOpenRouter(batch);
+        for (const item of translatedItems) {
+          if (item?.id) {
+            translations.set(item.id, item);
+          }
         }
+      } catch (error) {
+        failedBatch = error;
+        console.warn(`OpenRouter translation batch skipped: ${error.message}`);
+        break;
       }
     }
 
@@ -1716,13 +1756,15 @@ async function translatePublicContent(schedule, news, generatedAt) {
         source_name: 'OpenRouter',
         country_or_region: 'global',
         data_type: 'translation',
-        status: translations.size ? 'available' : 'available_empty',
+        status: translations.size ? 'available' : failedBatch ? 'parse_failed' : 'available_empty',
         terms_status: 'unknown',
         source_url: sourceUrls.openRouter,
         fetched_at: generatedAt,
         confidence: translations.size ? 0.72 : 0.2,
         item_count: translations.size,
-        notes: `Build-time schedule/news localization via ${OPENROUTER_MODEL}. The frontend never calls OpenRouter.`,
+        notes: failedBatch
+          ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. Last batch failed: ${failedBatch.message}. The frontend never calls OpenRouter.`
+          : `Build-time schedule/news localization via ${OPENROUTER_MODEL}. The frontend never calls OpenRouter.`,
       }),
     };
   } catch (error) {
