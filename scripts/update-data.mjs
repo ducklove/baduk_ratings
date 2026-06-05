@@ -1554,12 +1554,14 @@ function chunk(items, size) {
   return chunks;
 }
 
-async function fetchWithTimeout(url, init = {}, timeoutMs = 30000) {
+async function fetchTextResponseWithTimeout(url, init = {}, timeoutMs = 30000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    const bodyText = await response.text();
+    return { response, bodyText };
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new Error(`request timed out after ${timeoutMs}ms`);
@@ -1630,7 +1632,7 @@ function buildTranslationItems(schedule, news, snapshotDate) {
 }
 
 async function translateBatchWithOpenRouter(items) {
-  const response = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
+  const { response, bodyText } = await fetchTextResponseWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${OPENROUTER_API_KEY}`,
@@ -1672,7 +1674,7 @@ async function translateBatchWithOpenRouter(items) {
     throw new Error(`OpenRouter request failed with HTTP ${response.status}`);
   }
 
-  const payload = await response.json();
+  const payload = JSON.parse(bodyText);
   const content = payload?.choices?.[0]?.message?.content;
   const parsed = parseJsonFromModelText(content);
   if (!Array.isArray(parsed.items)) {
