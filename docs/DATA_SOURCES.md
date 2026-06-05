@@ -4,6 +4,10 @@
 
 Optional schedule/news localization is performed only at data-generation time when `OPENROUTER_API_KEY` is present. The configured model defaults to `qwen/qwen3.7-plus`, and translated fields are stored in generated JSON as `localized_title`, `localized_tournament`, and `localized_summary`. If the key is absent or the request fails, the app falls back to source text and records the state in `source_status.json`.
 
+## Scheduled Refresh
+
+GitHub Actions runs the data refresh and Pages deployment every day at 18:00 Asia/Seoul (09:00 UTC). The scheduled job performs the same pipeline as a push deployment: collect public source data, regenerate news, schedule, external ratings, and Baduk-R, validate the generated snapshot, build, and deploy the static artifact.
+
 ## Ratings
 
 - Baduk-R: internally computed own rating from parsed professional game outcomes. GoRatings score is not used as the Baduk-R input.

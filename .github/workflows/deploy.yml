@@ -3,6 +3,9 @@ name: Deploy baduk_ratings
 on:
   push:
     branches: [main]
+  schedule:
+    # Daily data refresh at 18:00 Asia/Seoul (09:00 UTC).
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 permissions:
