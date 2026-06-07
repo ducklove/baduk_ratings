@@ -60,6 +60,6 @@ pytest
 
 ## Deployment
 
-The Vite base path is `/baduk_ratings/`. The included GitHub Actions workflow regenerates data, validates, builds, and deploys `dist` to GitHub Pages on pushes to `main`, manual dispatches, and the daily 18:00 KST refresh.
+The Vite base path is `/baduk_ratings/`. The included GitHub Actions workflow regenerates data, validates, builds, and deploys `dist` to GitHub Pages on pushes to `main`, manual dispatches, the daily 18:17 KST refresh, and a 20:07 KST backup refresh.
 
 The scheduled refresh runs `npm run generate:data`, so it checks public news/column sources, current schedules and game-result sources, external rating sources, recomputes Baduk-R, validates the snapshot, and deploys the fresh static artifact.

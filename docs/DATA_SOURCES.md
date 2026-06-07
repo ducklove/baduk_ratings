@@ -6,7 +6,7 @@ Optional schedule/news localization is performed only at data-generation time wh
 
 ## Scheduled Refresh
 
-GitHub Actions runs the data refresh and Pages deployment every day at 18:00 Asia/Seoul (09:00 UTC). The scheduled job performs the same pipeline as a push deployment: collect public source data, regenerate news, schedule, external ratings, and Baduk-R, validate the generated snapshot, build, and deploy the static artifact.
+GitHub Actions runs the data refresh and Pages deployment every day at 18:17 Asia/Seoul (09:17 UTC), with a 20:07 Asia/Seoul backup refresh. The scheduled job performs the same pipeline as a push deployment: collect public source data, regenerate news, schedule, external ratings, and Baduk-R, validate the generated snapshot, build, and deploy the static artifact.
 
 ## Ratings
 

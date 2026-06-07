@@ -491,6 +491,19 @@ function sortNewsItems(items) {
   });
 }
 
+function fallbackNewsItems(previousSnapshot, { region, contentTypes = [], limit = 5, reason }) {
+  const previousNews = Array.isArray(previousSnapshot?.news) ? previousSnapshot.news : [];
+  return previousNews
+    .filter((item) => item.region === region)
+    .filter((item) => !contentTypes.length || contentTypes.includes(item.content_type))
+    .slice(0, limit)
+    .map((item) => ({
+      ...item,
+      curation_score: (item.curation_score ?? 0) - 4,
+      curation_reason: [...new Set([...(item.curation_reason ?? []), reason])],
+    }));
+}
+
 function parseNihonColumnFeed(xml) {
   const items = [];
 
@@ -1801,6 +1814,13 @@ async function main() {
   const snapshotDate = kstDateString(new Date(generatedAt));
   const sourceStatuses = [];
   const unresolvedExternalRatings = [];
+  let previousSnapshot = null;
+
+  try {
+    previousSnapshot = JSON.parse(await readFile(outFile, 'utf8'));
+  } catch {
+    previousSnapshot = null;
+  }
 
   console.log('Fetching GoRatings rating list...');
   const [ratingHtml, localizedNames] = await Promise.all([
@@ -2192,6 +2212,34 @@ async function main() {
     }
     return (right.importance_score ?? 0) - (left.importance_score ?? 0);
   });
+
+  if (!news.length) {
+    news = fallbackNewsItems(previousSnapshot, {
+      region: 'kr',
+      contentTypes: ['news'],
+      limit: 8,
+      reason: 'previous_snapshot_korean_news_fallback',
+    });
+  }
+
+  if (!nihonColumnNews.length) {
+    nihonColumnNews = fallbackNewsItems(previousSnapshot, {
+      region: 'jp',
+      contentTypes: ['column'],
+      limit: 6,
+      reason: 'previous_snapshot_nihon_column_fallback',
+    });
+  }
+
+  if (!cwaEditorialNews.length) {
+    cwaEditorialNews = fallbackNewsItems(previousSnapshot, {
+      region: 'cn',
+      contentTypes: ['media_report', 'news'],
+      limit: 8,
+      reason: 'previous_snapshot_cwa_editorial_fallback',
+    });
+  }
+
   news = sortNewsItems([...news, ...nihonColumnNews, ...cwaEditorialNews]).slice(0, 36);
 
   console.log('Localizing schedule and news text if OpenRouter is configured...');
