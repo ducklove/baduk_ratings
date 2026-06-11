@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "note": "Manually curated registry of major professional tournaments. Winner entries are added only when verified; verify each entry against source_url before extending.",
+  "tournaments": [
+    {
+      "id": "lg_cup",
+      "names": { "en": "LG Cup", "ko": "LG배 기왕전", "ja": "LG杯棋王戦", "zhHans": "LG杯", "zhHant": "LG盃" },
+      "aliases": ["LG배", "LG杯", "LG Cup", "LG盃"],
+      "region": "int",
+      "host_country": "kr",
+      "organizer": "Chosun Ilbo / LG",
+      "founded": 1996,
+      "cycle": "annual",
+      "format_note": "International knockout; best-of-3 final",
+      "web_url": "https://en.wikipedia.org/wiki/LG_Cup_(Go)",
+      "winners": [
+        { "edition": 29, "year": 2025, "winner_name": "Byun Sang-il", "runner_up_name": "Ke Jie", "source_url": "https://en.wikipedia.org/wiki/LG_Cup_(Go)" }
+      ]
+    },
+    {
+      "id": "samsung_cup",
+      "names": { "en": "Samsung Cup", "ko": "삼성화재배", "ja": "三星火災杯", "zhHans": "三星杯", "zhHant": "三星盃" },
+      "aliases": ["삼성화재배", "삼성배", "三星", "Samsung"],
+      "region": "int",
+      "host_country": "kr",
+      "organizer": "Samsung Fire & Marine Insurance / JoongAng Ilbo",
+      "founded": 1996,
+      "cycle": "annual",
+      "format_note": "International knockout; best-of-3 final",
+      "web_url": "https://en.wikipedia.org/wiki/Samsung_Fire_Cup",
+      "winners": []
+    },
+    {
+      "id": "ing_cup",
+      "names": { "en": "Ing Cup", "ko": "응씨배", "ja": "応氏杯", "zhHans": "应氏杯", "zhHant": "應氏盃" },
+      "aliases": ["응씨배", "応氏", "应氏", "應氏", "Ing Cup"],
+      "region": "int",
+      "host_country": "tw",
+      "organizer": "Ing Chang-ki Wei-chi Educational Foundation",
+      "founded": 1988,
+      "cycle": "quadrennial",
+      "format_note": "Held every four years; best-of-5 final; Ing rules",
+      "web_url": "https://en.wikipedia.org/wiki/Ing_Cup",
+      "winners": [
+        { "edition": 9, "year": 2023, "winner_name": "Shin Jin-seo", "runner_up_name": "Xie Ke", "source_url": "https://en.wikipedia.org/wiki/Ing_Cup" }
+      ]
+    },
+    {
+      "id": "chunlan_cup",
+      "names": { "en": "Chunlan Cup", "ko": "춘란배", "ja": "春蘭杯", "zhHans": "春兰杯", "zhHant": "春蘭盃" },
+      "aliases": ["춘란", "春蘭", "春兰", "Chunlan"],
+      "region": "int",
+      "host_country": "cn",
+      "organizer": "Chunlan Group",
+      "founded": 1998,
+      "cycle": "biennial",
+      "format_note": "International knockout; best-of-3 final",
+      "web_url": "https://en.wikipedia.org/wiki/Chunlan_Cup",
+      "winners": []
+    },
+    {
+      "id": "mlily_cup",
+      "names": { "en": "MLILY Cup", "ko": "몽백합배", "ja": "夢百合杯", "zhHans": "梦百合杯", "zhHant": "夢百合盃" },
+      "aliases": ["몽백합", "夢百合", "梦百合", "MLILY"],
+      "region": "int",
+      "host_country": "cn",
+      "organizer": "MLILY / Chinese Weiqi Association",
+      "founded": 2013,
+      "cycle": "biennial",
+      "format_note": "International knockout; best-of-5 final",
+      "web_url": "https://en.wikipedia.org/wiki/MLILY_Cup",
+      "winners": []
+    },
+    {
+      "id": "lanke_cup",
+      "names": { "en": "Lanke Cup", "ko": "란커배", "ja": "爛柯杯", "zhHans": "烂柯杯", "zhHant": "爛柯盃" },
+      "aliases": ["란커", "爛柯", "烂柯", "Lanke"],
+      "region": "int",
+      "host_country": "cn",
+      "organizer": "Quzhou City / Chinese Weiqi Association",
+      "founded": 2023,
+      "cycle": "biennial",
+      "format_note": "International knockout; best-of-3 final",
+      "web_url": "https://en.wikipedia.org/wiki/Lanke_Cup",
+      "winners": [
+        { "edition": 1, "year": 2023, "winner_name": "Gu Zihao", "runner_up_name": "Shin Jin-seo", "source_url": "https://en.wikipedia.org/wiki/Lanke_Cup" }
+      ]
+    },
+    {
+      "id": "nongshim_cup",
+      "names": { "en": "Nongshim Cup", "ko": "농심신라면배", "ja": "農心杯", "zhHans": "农心杯", "zhHant": "農心盃" },
+      "aliases": ["농심", "農心", "农心", "Nongshim"],
+      "region": "int",
+      "host_country": "kr",
+      "organizer": "Nongshim",
+      "founded": 1999,
+      "cycle": "annual",
+      "format_note": "Korea–China–Japan team relay (win-and-continue)",
+      "web_url": "https://en.wikipedia.org/wiki/Nongshim_Cup",
+      "winners": [
+        { "edition": 25, "year": 2024, "winner_name": "Korea", "runner_up_name": null, "source_url": "https://en.wikipedia.org/wiki/Nongshim_Cup" }
+      ]
+    }
+  ]
+}

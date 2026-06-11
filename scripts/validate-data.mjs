@@ -172,11 +172,74 @@ for (const [playerId, points] of Object.entries(ownHistory.players)) {
   }
 }
 
+// Tournament registry export (required).
+const tournamentsExport = await readJson(path.join(dataDir, 'tournaments.json'));
+assert(tournamentsExport.schema_version === 1, 'tournaments.json schema_version must be 1');
+assert(
+  typeof tournamentsExport.curation_note === 'string' && tournamentsExport.curation_note.length > 0,
+  'tournaments.json missing curation_note',
+);
+assert(
+  Array.isArray(tournamentsExport.tournaments) && tournamentsExport.tournaments.length >= 5,
+  'tournaments.json must list at least 5 tournaments',
+);
+const scheduleEventIds = new Set(data.schedule.map((event) => event.id));
+for (const tournament of tournamentsExport.tournaments) {
+  for (const lang of ['en', 'ko', 'ja', 'zhHans', 'zhHant']) {
+    assert(tournament.names?.[lang], `tournaments.json missing ${lang} name for ${tournament.id}`);
+  }
+  assert(tournament.web_url, `tournaments.json missing web_url for ${tournament.id}`);
+  assert(Array.isArray(tournament.winners), `tournaments.json missing winners array for ${tournament.id}`);
+  for (const winner of tournament.winners) {
+    assert(
+      typeof winner.winner_name === 'string' && winner.winner_name.trim().length > 0,
+      `tournaments.json winner row without winner_name in ${tournament.id}`,
+    );
+    assert(winner.source_url, `tournaments.json winner row without source_url in ${tournament.id}`);
+  }
+  assert(Array.isArray(tournament.event_ids), `tournaments.json missing event_ids for ${tournament.id}`);
+  for (const eventId of tournament.event_ids) {
+    assert(
+      scheduleEventIds.has(eventId),
+      `tournaments.json ${tournament.id} references unknown schedule event ${eventId}`,
+    );
+  }
+}
+
+// Kifu exports are OPTIONAL: collection is network-only and absence is a
+// first-class outcome. When present they must be internally consistent.
+const kifuDir = path.join(dataDir, 'kifu');
+let kifuIndex = null;
+try {
+  kifuIndex = await readJson(path.join(kifuDir, 'index.json'));
+} catch {
+  kifuIndex = null;
+}
+if (kifuIndex) {
+  assert(kifuIndex.schema_version === 1, 'kifu/index.json schema_version must be 1');
+  assert(typeof kifuIndex.source_note === 'string' && kifuIndex.source_note.length > 0, 'kifu/index.json missing source_note');
+  assert(Array.isArray(kifuIndex.games), 'kifu/index.json missing games array');
+  for (const game of kifuIndex.games) {
+    assert(game.key, 'kifu/index.json game without key');
+    assert(game.source_url, `kifu/index.json game ${game.key} missing source_url`);
+    assert(game.terms_status, `kifu/index.json game ${game.key} missing terms_status`);
+    assert(
+      typeof game.file === 'string' && game.file.startsWith('data/kifu/'),
+      `kifu/index.json game ${game.key} has a bad file path`,
+    );
+    const kifu = await readJson(path.join(dataDir, game.file.replace(/^data\//, '')));
+    assert(Array.isArray(kifu.moves) && kifu.moves.length >= 30, `kifu game ${game.key} must carry at least 30 moves`);
+    assert(kifu.source_url, `kifu game ${game.key} missing source_url`);
+    assert(kifu.terms_status, `kifu game ${game.key} missing terms_status`);
+    assert(game.move_count === kifu.moves.length, `kifu game ${game.key} move_count out of sync`);
+  }
+}
+
 const feedXml = await readFile(feedFile, 'utf8');
 assert(feedXml.trim().length > 0, 'feed.xml must not be empty');
 assert(feedXml.includes('<rss'), 'feed.xml must be an RSS document');
 assert(feedXml.includes('<item>'), 'feed.xml must contain items');
 
 console.log(
-  `Data OK: ${data.players.length} players, ${Object.keys(data.playerDetails).length} profiles, ${data.schedule.length} schedule events, ${data.externalRatings.length} external ratings.`,
+  `Data OK: ${data.players.length} players, ${Object.keys(data.playerDetails).length} profiles, ${data.schedule.length} schedule events, ${data.externalRatings.length} external ratings, ${tournamentsExport.tournaments.length} tournaments, ${kifuIndex ? kifuIndex.games.length : 'no'} kifu.`,
 );

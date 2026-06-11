@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const rootDir = path.resolve(__dirname, '..', '..');
 export const defaultDataDir = path.join(rootDir, 'public', 'data');
 export const prestigeFile = path.join(rootDir, 'data', 'manual', 'tournament_prestige.yml');
+export const tournamentsFile = path.join(rootDir, 'data', 'manual', 'tournaments.json');
 
 export const TARGET_COUNTRIES = ['kr', 'cn', 'jp', 'tw'];
 export const MODEL_VERSION = 'baduk-r-0.4.0-game-graph';
@@ -36,6 +37,7 @@ export const sourceUrls = {
   haifong: 'https://www.haifong.org/',
   haifongCalendar: 'https://www.haifong.org/about/calendar',
   openRouter: 'https://openrouter.ai/',
+  go4go: 'http://www.go4go.net/',
 };
 
 export function readPositiveIntEnv(name, fallback) {

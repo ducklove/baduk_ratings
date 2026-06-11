@@ -29,10 +29,12 @@ import {
 } from './goratings.mjs';
 import { fetchJson, fetchText, withConcurrency } from './http.mjs';
 import { buildKbaExternalRatings, parseKbaRankingRows, parseKbaSchedule, parseNews } from './kba.mjs';
+import { collectKifuRecords } from './kifu.mjs';
 import { buildOwnRatings } from './model.mjs';
 import { fallbackNewsItems, sortNewsItems } from './news.mjs';
 import { fetchNihonColumns, parseNihonSchedule } from './nihon.mjs';
 import { enrichScheduleEvents, loadTournamentPrestige } from './schedule.mjs';
+import { buildTournamentsExport, loadTournamentRegistry } from './tournaments.mjs';
 import { buildPlayerNameIndex, kstDateString } from './text.mjs';
 import { translatePublicContent } from './translate.mjs';
 
@@ -555,6 +557,16 @@ export async function runPipeline(options = {}) {
   news = translationResult.news;
   sourceStatuses.push(translationResult.status);
 
+  console.log('Collecting kifu from linked viewer pages...');
+  const kifuStatus = await collectKifuRecords({
+    players,
+    ownRatings,
+    playerDetails,
+    dataDir: paths.dataDir,
+    generatedAt,
+  });
+  sourceStatuses.push(kifuStatus);
+
   const externalRatings = [
     ...buildGoRatingsExternalRatings(players, stats, generatedAt),
     ...cwaRatings.external,
@@ -608,6 +620,8 @@ export async function runPipeline(options = {}) {
     players: mergeOwnHistory(previousHistory, ownRatings, snapshotDate),
   };
   const feedXml = buildRssFeed({ players, ownRatings, generatedAt });
+  const tournamentRegistry = await loadTournamentRegistry();
+  const tournamentsExport = buildTournamentsExport(tournamentRegistry, schedule, players, generatedAt);
 
   await writeSnapshotOutputs({
     dataDir: paths.dataDir,
@@ -616,6 +630,7 @@ export async function runPipeline(options = {}) {
     unresolvedExternalRatings,
     ownHistory,
     feedXml,
+    tournamentsExport,
   });
 
   console.log(
@@ -651,6 +666,15 @@ export async function runFromSnapshot(options = {}) {
     ownRatings: data.ownRatings,
     generatedAt: data.generatedAt,
   });
+  // Pure derivation from the committed snapshot and the manual registry; kifu
+  // collection is network-only and existing kifu exports stay untouched here.
+  const tournamentRegistry = await loadTournamentRegistry();
+  const tournamentsExport = buildTournamentsExport(
+    tournamentRegistry,
+    data.schedule,
+    data.players,
+    data.generatedAt,
+  );
 
   await writeSnapshotOutputs({
     dataDir: paths.dataDir,
@@ -659,6 +683,7 @@ export async function runFromSnapshot(options = {}) {
     unresolvedExternalRatings,
     ownHistory,
     feedXml,
+    tournamentsExport,
   });
 
   console.log(
