@@ -42,12 +42,13 @@ jobs:
         run: npm ci
 
       - name: Generate data snapshot
-        timeout-minutes: 15
+        timeout-minutes: 20
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: qwen/qwen3.7-plus
-          OPENROUTER_TRANSLATION_TIMEOUT_MS: 120000
-          OPENROUTER_TRANSLATION_BATCH_SIZE: 2
+          OPENROUTER_TRANSLATION_TIMEOUT_MS: 90000
+          OPENROUTER_TRANSLATION_BUDGET_MS: 480000
+          OPENROUTER_TRANSLATION_BATCH_SIZE: 4
           OPENROUTER_NEWS_TRANSLATION_LIMIT: 12
           OPENROUTER_SCHEDULE_TRANSLATION_LIMIT: 24
         run: npm run generate:data
