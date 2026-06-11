@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>baduk_ratings 프로젝트 진단 보고서 · 2026-06-11</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #1c2330;
+    --muted: #5b6575;
+    --line: #e3e7ee;
+    --accent: #2b5cab;
+    --accent-soft: #e8effa;
+    --good: #1e7d4f;
+    --good-soft: #e4f4ec;
+    --warn: #a66a00;
+    --warn-soft: #fdf3e0;
+    --bad: #b03434;
+    --bad-soft: #fbe9e9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.65;
+    font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+  header.hero {
+    background: linear-gradient(135deg, #16243d, #2b5cab);
+    color: #fff;
+    border-radius: 16px;
+    padding: 36px 36px 30px;
+    margin-bottom: 36px;
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 26px; letter-spacing: -0.3px; }
+  header.hero p { margin: 0; opacity: 0.85; font-size: 14.5px; }
+  header.hero .meta { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
+  header.hero .meta span {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 12.5px;
+  }
+  h2 {
+    font-size: 20px;
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+    letter-spacing: -0.3px;
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 16px; margin: 28px 0 10px; }
+  p { margin: 10px 0; }
+  section.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 8px;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f1f4f9; font-weight: 600; white-space: nowrap; }
+  code {
+    background: #eef1f6;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'JetBrains Mono', 'D2Coding', Consolas, monospace;
+    font-size: 12.5px;
+  }
+  .grade {
+    display: inline-block;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .g-a { background: var(--good-soft); color: var(--good); }
+  .g-b { background: var(--accent-soft); color: var(--accent); }
+  .g-c { background: var(--warn-soft); color: var(--warn); }
+  .g-d { background: var(--bad-soft); color: var(--bad); }
+  .tag {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 1px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 6px;
+    white-space: nowrap;
+  }
+  .t-high { background: var(--bad-soft); color: var(--bad); }
+  .t-mid { background: var(--warn-soft); color: var(--warn); }
+  .t-low { background: var(--accent-soft); color: var(--accent); }
+  .t-done { background: var(--good-soft); color: var(--good); }
+  ul { padding-left: 22px; margin: 8px 0; }
+  li { margin: 5px 0; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .cols { grid-template-columns: 1fr; } }
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    background: #fbfcfe;
+  }
+  .card h4 { margin: 0 0 8px; font-size: 14.5px; }
+  .card.good { border-left: 4px solid var(--good); }
+  .card.bad { border-left: 4px solid var(--bad); }
+  .summary-box {
+    background: var(--accent-soft);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 16px 0;
+  }
+  .summary-box strong { color: var(--accent); }
+  footer { margin-top: 56px; color: var(--muted); font-size: 12.5px; text-align: center; }
+  .small { color: var(--muted); font-size: 13px; }
+  .roadmap-phase {
+    border-left: 3px solid var(--accent);
+    padding-left: 18px;
+    margin: 22px 0;
+  }
+  .roadmap-phase h3 { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>baduk_ratings (Baduk-R) 프로젝트 진단 보고서</h1>
+  <p>현재 상태 평가 · 개선 진행 방향 · 향후 추가 기능 제안</p>
+  <div class="meta">
+    <span>작성일 2026-06-11</span>
+    <span>스냅샷 2026-06-04 기준</span>
+    <span>React 18 + Vite 6 + TypeScript</span>
+    <span>GitHub Pages 정적 배포</span>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<h2><span class="num">0.</span>요약 (Executive Summary)</h2>
+<section class="panel">
+  <div class="summary-box">
+    <strong>종합 평가: B+ (잘 설계된 정적 데이터 서비스, 성장 단계 진입)</strong><br/>
+    데이터 출처 투명성·정직한 결측치 처리·자체 레이팅 분리라는 설계 철학이 코드 전반에 일관되게
+    구현되어 있고, 일일 자동 갱신 파이프라인까지 완성된 상태입니다. 반면 <b>테스트가 생성된 데이터
+    검증에만 의존</b>하고(파서·모델 단위 테스트 부재), <b>단일 5.9MB JSON 로딩</b>, <b>1,300줄 단일
+    App 컴포넌트</b>, <b>Baduk-R 자체 이력 미보존</b>(추세 그래프가 GoRatings 이력을 표시) 등
+    다음 단계 성장을 막는 구조적 부채가 명확합니다.
+  </div>
+  <p>개선은 ① 안정성(파서 테스트·장애 내성) → ② 성능/구조(데이터 분할·컴포넌트 분리) →
+  ③ 제품 기능(이력 보존·딥링크·SEO) → ④ 모델 고도화(Glicko/WHR·예측 보정) 순서를 권장합니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<h2><span class="num">1.</span>프로젝트 현황 개요</h2>
+<section class="panel">
+  <p><b>Baduk-R</b>은 한국·중국·일본·대만 프로 바둑 기사의 레이팅, 승부 예측, 대국 일정, 뉴스/칼럼,
+  선수 프로필을 5개 언어(en/ko/ja/zh-Hans/zh-Hant)로 제공하는 <b>완전 정적 웹 서비스</b>입니다.
+  런타임에는 외부 API를 일절 호출하지 않으며, 모든 데이터는 빌드 전 <code>scripts/update-data.mjs</code>가
+  수집·가공해 JSON으로 내보냅니다.</p>
+
+  <h3>1.1 아키텍처</h3>
+  <table>
+    <tr><th>계층</th><th>구성</th><th>비고</th></tr>
+    <tr><td>프런트엔드</td><td>React 18.3 + Vite 6 + TypeScript 5.7, 라우터/상태관리 라이브러리 없음</td><td><code>App.tsx</code> 1,302줄 · <code>index.css</code> 1,784줄</td></tr>
+    <tr><td>데이터 파이프라인</td><td><code>update-data.mjs</code> 2,331줄 단일 스크립트 (수집→정제→모델→번역→출력)</td><td>의존성 없는 순수 Node, 정규식 기반 HTML 파싱</td></tr>
+    <tr><td>레이팅 모델</td><td>Baduk-R 0.4.0 (game-graph): 동일 prior 2500에서 Elo식 재계산, 경험 보정 K-factor, 불확실도 산출</td><td>GoRatings 점수를 입력으로 쓰지 않음 (테스트로 강제)</td></tr>
+    <tr><td>외부 레이팅</td><td>GoRatings · 중국기원(CWA API) · 한국기원 월간랭킹을 별도 컬럼으로 병기</td><td>이름 정규화 매칭, 미매칭은 <code>unresolved</code>로 보고</td></tr>
+    <tr><td>번역</td><td>빌드 타임 OpenRouter(qwen) 일괄 번역, 실패 시 원문 폴백</td><td>프런트엔드는 키 미보유 — 보안상 올바른 설계</td></tr>
+    <tr><td>검증</td><td><code>validate-data.mjs</code>(Node) + <code>pytest</code> 스키마 테스트</td><td>둘 다 <b>생성 결과물</b> 검증 — 코드 자체 테스트는 없음</td></tr>
+    <tr><td>배포</td><td>GitHub Actions: push + 일 2회 스케줄(18:17 / 20:07 KST) → 데이터 재생성 → lint/validate/build → Pages</td><td>백업 cron까지 갖춘 견고한 구성</td></tr>
+  </table>
+
+  <h3>1.2 현재 데이터 스냅샷 (2026-06-04 생성분)</h3>
+  <table>
+    <tr><th>항목</th><th>수치</th><th>항목</th><th>수치</th></tr>
+    <tr><td>추적 선수</td><td>891명</td><td>상세 프로필</td><td>117명 (top70 + 국가별 16 + 여성 24)</td></tr>
+    <tr><td>일정 이벤트</td><td>160건 (KR 77 · JP 79 · CN 4)</td><td>뉴스/칼럼</td><td>23건</td></tr>
+    <tr><td>자체 레이팅 행</td><td>891</td><td>외부 레이팅 행</td><td>1,202 (GoRatings 891 · CWA 240 · KBA 71)</td></tr>
+    <tr><td><code>baduk-data.json</code></td><td>5.9MB (pretty-print)</td><td>소스 상태</td><td>12개 소스 중 8개 available, 대만·CWA캘린더 empty, 번역 unavailable</td></tr>
+  </table>
+  <p class="small">※ 번역 소스가 unavailable인 것은 로컬 스냅샷에 OPENROUTER_API_KEY가 없었기 때문이며,
+  CI에서도 뉴스 6건·일정 0건으로 번역 한도가 매우 낮게 설정되어 있어 실서비스에서 다국어 번역 커버리지가 제한적입니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<h2><span class="num">2.</span>현재 상태 평가</h2>
+<section class="panel">
+  <h3>2.1 영역별 점수</h3>
+  <table>
+    <tr><th>영역</th><th>평가</th><th>근거</th></tr>
+    <tr><td>설계 철학·데이터 정직성</td><td><span class="grade g-a">A</span></td><td>결측치를 0이 아닌 null로 저장, terms_status/confidence/provenance 전 항목 기록, source_status.json으로 장애·공백을 숨기지 않고 공개. 테스트가 이 원칙을 강제함.</td></tr>
+    <tr><td>배포·자동화</td><td><span class="grade g-a">A−</span></td><td>일일 갱신 + 백업 cron, 배포 전 lint/validate/build 게이트, 뉴스 공백 시 이전 스냅샷 폴백으로 일시 장애에도 배포 유지.</td></tr>
+    <tr><td>다국어(i18n)</td><td><span class="grade g-b">B+</span></td><td>UI 5개 언어 완비, 선수명 4개 언어. 다만 뉴스/일정 번역 한도가 낮고, 언어 선택이 저장되지 않으며 기본값이 ko 하드코딩.</td></tr>
+    <tr><td>프런트엔드 코드 구조</td><td><span class="grade g-c">C+</span></td><td>App.tsx 1,302줄에 테이블·예측기·프로필·피드가 전부 동거. 컴포넌트 1개(RegionBadge)만 분리. 기능 추가 시 충돌 비용이 빠르게 증가하는 구간.</td></tr>
+    <tr><td>성능·로딩</td><td><span class="grade g-c">C</span></td><td>첫 화면이 5.9MB JSON 단일 fetch에 의존(playerDetails 포함 전체 임베드). pretty-print로 불필요하게 비대. 모바일에서 체감 큼.</td></tr>
+    <tr><td>테스트</td><td><span class="grade g-c">C</span></td><td>스냅샷 스키마 검증은 충실하나, 정규식 파서·Baduk-R 모델·React 컴포넌트에 대한 단위 테스트가 전무. CI는 pytest를 실행하지 않음(README와 불일치).</td></tr>
+    <tr><td>레이팅 모델</td><td><span class="grade g-c">C+</span></td><td>방법론 문서화는 훌륭하나, 게임 그래프가 상세 수집된 117명의 대국 목록에서만 구성되어 나머지 ~770명은 사실상 prior(2500) 근처에 머묾. 시간 감쇠·흑백 이점 미반영.</td></tr>
+    <tr><td>SEO·공유성</td><td><span class="grade g-d">D+</span></td><td>OG 태그·sitemap·hreflang 부재, SPA라 선수별 URL 없음, 필터/선택 상태가 URL에 반영되지 않아 공유 불가.</td></tr>
+  </table>
+
+  <h3>2.2 강점과 약점</h3>
+  <div class="cols">
+    <div class="card good">
+      <h4>✅ 강점</h4>
+      <ul>
+        <li><b>일관된 데이터 윤리</b> — 출처·약관·신뢰도·결측 사유를 전부 데이터에 남기는 설계가 코드와 테스트로 강제됨. 이 프로젝트의 핵심 차별점.</li>
+        <li><b>자체 레이팅 독립성</b> — Baduk-R이 GoRatings 복제가 아님을 테스트로 검증(상위 50명 평균 차이 &gt; 300).</li>
+        <li><b>장애 내성 있는 파이프라인</b> — 소스별 try/catch + 상태 기록 + 이전 스냅샷 뉴스 폴백으로 일일 배포가 끊기지 않음.</li>
+        <li><b>보안 설계</b> — API 키가 빌드 타임에만 사용되고 프런트 번들에 포함되지 않음.</li>
+        <li><b>일정 중요도/뉴스 큐레이션의 결정론적 점수화</b> — 사유(reasons)까지 노출해 설명 가능.</li>
+        <li><b>의존성 최소주의</b> — 런타임 의존성 3개(react, react-dom, lucide). 공급망 리스크 낮음.</li>
+      </ul>
+    </div>
+    <div class="card bad">
+      <h4>⚠️ 약점 · 리스크</h4>
+      <ul>
+        <li><b>GoRatings 단일 장애점</b> — 선수 명단·게임 기록·이력의 원천이 GoRatings 정규식 파싱 하나. 메인 페이지 마크업이 바뀌면 <code>main()</code>이 try/catch 없이 실패하고 일일 갱신 전체가 중단됨.</li>
+        <li><b>파서 단위 테스트 부재</b> — HTML fixture 기반 테스트가 없어 소스 마크업 변경을 사전에 감지 불가. 깨진 후 source_status로만 알게 됨.</li>
+        <li><b>추세 그래프 불일치</b> — 랭킹·예측은 Baduk-R인데 테이블/프로필의 트렌드 차트(<code>player.history</code>)는 GoRatings 이력. 사용자에게 혼동을 줄 수 있는 정합성 문제.</li>
+        <li><b>Baduk-R 이력 미보존</b> — 매 배포가 스냅샷을 덮어써서 자체 레이팅의 시계열을 만들 수 없음(델타는 모델 재실행으로 근사 중).</li>
+        <li><b>커버리지 편중</b> — 게임 그래프가 상위 117명 중심이라 중하위권 레이팅은 신뢰 불가(불확실도로 표시는 됨).</li>
+        <li><b>이름 매칭 휴리스틱</b> — 정규화 동명이인 충돌 가능성. unresolved 보고는 되지만 오매칭 검출 장치는 없음.</li>
+        <li><b>대만 데이터 공백</b> — 일정·뉴스 모두 비어 있어 4개국 서비스라는 포지셔닝 대비 약함.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<h2><span class="num">3.</span>개선 진행 방향 (로드맵)</h2>
+<section class="panel">
+  <p>각 단계는 독립 배포 가능하며, 앞 단계가 뒤 단계의 안전망이 되도록 순서를 잡았습니다.</p>
+
+  <div class="roadmap-phase">
+    <h3><span class="tag t-high">Phase 1</span> 안정성 · 회귀 방지 기반 (1~2주)</h3>
+    <ul>
+      <li><b>파서 단위 테스트 도입</b> — 실제 응답을 fixture로 저장하고 Vitest로 <code>parseRatingRows</code>, <code>parseKbaSchedule</code>, <code>parseNihonSchedule</code>, <code>parseChineseDateRanges</code>, <code>normalizeName</code> 등을 검증. 마크업 변경을 CI에서 즉시 감지.</li>
+      <li><b>GoRatings 장애 시 이전 스냅샷 폴백</b> — 뉴스에만 있는 폴백 패턴을 선수/레이팅 수집까지 확장해 단일 장애점 제거. 폴백 사용 시 <code>source_status</code>에 stale 표기.</li>
+      <li><b><code>update-data.mjs</code> 모듈 분할</b> — <code>scripts/sources/</code>(소스별 fetch+parse), <code>scripts/model/</code>(Baduk-R), <code>scripts/translate/</code>로 분리. 테스트 가능성과 소스 추가 비용이 동시에 개선됨.</li>
+      <li><b>CI에 pytest 추가</b> — README가 약속하는 품질 게이트와 실제 CI를 일치시킴 (또는 Python 테스트를 Node로 통합해 이중 관리 제거).</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <h3><span class="tag t-high">Phase 2</span> 성능 · 프런트 구조 (1~2주)</h3>
+    <ul>
+      <li><b>데이터 분할 로딩</b> — <code>baduk-data.json</code>을 ① 랭킹 코어(선수+비교, 즉시 로드) ② 선수별 상세(<code>players/{id}.json</code>, 선택 시 lazy fetch) ③ 일정/뉴스로 분리. pretty-print 제거(minify)만으로도 약 30% 절감, 분할 시 첫 로드를 수백 KB 수준으로 단축 가능.</li>
+      <li><b>App.tsx 컴포넌트 분리</b> — RankingTable / PredictorPanel / ProfilePanel / SchedulePanel / NewsPanel / SourceHub 단위로 분할하고 데이터 가공 로직을 훅으로 추출. CSS도 컴포넌트별로 분리.</li>
+      <li><b>UI 상태의 URL 동기화 + 영속화</b> — 언어를 localStorage(최초엔 브라우저 언어 감지)에 저장하고, 국가/모드/정렬/선택 선수를 해시 파라미터로 반영해 공유 가능한 링크 제공.</li>
+      <li><b>테이블 UX</b> — 컬럼 헤더 클릭 정렬, 220행 제한 대신 가상 스크롤 또는 "더 보기".</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <h3><span class="tag t-mid">Phase 3</span> 제품 완성도 (2~4주)</h3>
+    <ul>
+      <li><b>Baduk-R 이력 아카이빙</b> — 일일 갱신 시 <code>own_latest.json</code> 요약본을 날짜별로 누적 저장(저장소 또는 별도 브랜치). 이것으로 <b>추세 그래프를 GoRatings 이력 대신 진짜 Baduk-R 시계열로 교체</b> — 현재 가장 큰 정합성 문제 해소.</li>
+      <li><b>선수 딥링크 + SEO</b> — <code>#/player/{id}</code> 라우트, OG/Twitter 메타 태그, hreflang, sitemap. 빌드 타임에 상위 선수 정적 페이지 프리렌더링(데이터가 이미 빌드 타임에 존재하므로 비용 낮음).</li>
+      <li><b>번역 커버리지 확대</b> — CI의 번역 한도(뉴스 6 · 일정 0)를 상향하되, 이미 번역된 항목은 이전 스냅샷에서 재사용하는 캐시를 도입해 API 비용·시간을 통제.</li>
+      <li><b>대만 소스 보강</b> — 대만기원(台灣棋院) 일정/랭킹 소스 조사·추가로 4개국 커버리지 완성.</li>
+      <li><b>모바일 최적화</b> — 현재 hide-tablet/hide-mobile로 컬럼을 숨기는 방식에서, 모바일 전용 카드 레이아웃으로 전환.</li>
+    </ul>
+  </div>
+
+  <div class="roadmap-phase">
+    <h3><span class="tag t-low">Phase 4</span> 모델 고도화 (지속)</h3>
+    <ul>
+      <li><b>게임 그래프 커버리지 확대</b> — 상세 수집 대상을 117명에서 단계적으로 확대(또는 전체 선수의 게임 목록 페이지 수집)해 중하위권 레이팅 신뢰도 개선. 수집량 증가는 동시성·캐싱으로 흡수.</li>
+      <li><b>모델 업그레이드</b> — Elo → Glicko-2 또는 WHR(시간 감쇠 내장)로 전환, 흑/백 승률 이점 추정 추가. METHODOLOGY.md에 명시된 "정직하게 추정 가능해질 때 공개" 원칙과 부합.</li>
+      <li><b>예측 보정(calibration) 공개</b> — 과거 예측 vs 실제 결과의 Brier score/신뢰도 곡선을 자동 산출해 방법론 페이지에 게시. 프로젝트의 투명성 철학을 모델 성능까지 확장.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<h2><span class="num">4.</span>향후 추가할 만한 기능</h2>
+<section class="panel">
+  <table>
+    <tr><th>기능</th><th>설명</th><th>가치</th><th>난이도</th></tr>
+    <tr>
+      <td><b>선수 비교 차트</b></td>
+      <td>두 선수의 레이팅 이력을 한 그래프에 오버레이 + 상대전적 전체 목록. 예측기와 자연스럽게 결합.</td>
+      <td><span class="tag t-done">높음</span></td><td>낮음 (데이터 이미 보유)</td>
+    </tr>
+    <tr>
+      <td><b>타이틀 홀더 / 기전 현황 페이지</b></td>
+      <td>국가별 주요 기전의 현 타이틀 보유자, 도전기 진행 상황 정리. <code>tournament_prestige.yml</code>을 자연스럽게 확장.</td>
+      <td><span class="tag t-done">높음</span></td><td>중간 (수동 데이터 + 일정 연동)</td>
+    </tr>
+    <tr>
+      <td><b>토너먼트 시뮬레이션</b></td>
+      <td>대진표 기반 몬테카를로 시뮬레이션으로 우승 확률 산출. 기존 승률 모델 재사용으로 국제기전 시즌에 강력한 트래픽 유인.</td>
+      <td><span class="tag t-done">높음</span></td><td>중간</td>
+    </tr>
+    <tr>
+      <td><b>레이팅 변동 피드 (RSS/Atom)</b></td>
+      <td>일일 갱신 시 Top10 변동·급상승 선수를 빌드 타임에 RSS로 생성. 정적 호스팅으로 구독 기능을 제공하는 가장 저렴한 방법.</td>
+      <td><span class="tag t-mid">중간</span></td><td>낮음</td>
+    </tr>
+    <tr>
+      <td><b>국가 대항 지표</b></td>
+      <td>국가별 Top10 평균 레이팅, 국제기전 상대 승률 등 거시 지표 대시보드. 한·중·일 라이벌 구도라는 콘텐츠 강점 활용.</td>
+      <td><span class="tag t-mid">중간</span></td><td>낮음</td>
+    </tr>
+    <tr>
+      <td><b>여성 기전 / 신예 랭킹 강화</b></td>
+      <td>현재 모드 탭 수준인 women/rising을 전용 뷰(전적·여성기전 일정 결합)로 승격.</td>
+      <td><span class="tag t-mid">중간</span></td><td>중간</td>
+    </tr>
+    <tr>
+      <td><b>공개 데이터 API 문서화</b></td>
+      <td>이미 공개된 <code>ratings/*.json</code>의 스키마·사용 약관을 문서 페이지로 제공. 외부 개발자 생태계 유도.</td>
+      <td><span class="tag t-mid">중간</span></td><td>낮음</td>
+    </tr>
+    <tr>
+      <td><b>PWA / 오프라인 캐시</b></td>
+      <td>서비스워커로 마지막 스냅샷 캐싱. 정적 구조라 적용이 쉽고 모바일 재방문 경험 개선.</td>
+      <td><span class="tag t-low">보통</span></td><td>낮음</td>
+    </tr>
+    <tr>
+      <td><b>임베드 위젯</b></td>
+      <td>"오늘의 빅매치", "Top10 랭킹"을 iframe 위젯으로 제공해 바둑 커뮤니티·블로그 유입 채널 확보.</td>
+      <td><span class="tag t-low">보통</span></td><td>중간</td>
+    </tr>
+    <tr>
+      <td><b>기보 뷰어 연동</b></td>
+      <td>최근 대국의 kifuUrl(이미 수집 중)을 활용한 경량 SGF 뷰어. 저작권·약관 확인 선행 필요.</td>
+      <td><span class="tag t-low">보통</span></td><td>높음</td>
+    </tr>
+  </table>
+  <p class="small">우선 추천 3종: <b>선수 비교 차트</b>(저비용·고가치), <b>레이팅 변동 RSS</b>(재방문 유도),
+  <b>토너먼트 시뮬레이션</b>(차별화 킬러 기능). 셋 모두 기존 데이터·모델 재사용으로 구현 가능합니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<h2><span class="num">5.</span>즉시 처리 권장 항목 (Quick Wins)</h2>
+<section class="panel">
+  <ul>
+    <li><b>JSON minify</b> — <code>JSON.stringify(data, null, 2)</code> → <code>JSON.stringify(data)</code>. 한 줄 수정으로 전송량 즉시 절감.</li>
+    <li><b>트렌드 차트 라벨 명시</b> — Baduk-R 이력 교체 전까지는 차트에 "GoRatings 추세" 표기를 붙여 정합성 혼동 방지.</li>
+    <li><b>언어 자동 감지 + 저장</b> — <code>navigator.language</code> 기반 초기값 + localStorage. 수십 줄 수준.</li>
+    <li><b>OG 메타 태그 추가</b> — <code>index.html</code>에 og:title/description/image 추가. SNS 공유 품질 즉시 개선.</li>
+    <li><b>CI에 pytest 단계 추가</b> — 문서와 파이프라인의 불일치 해소.</li>
+    <li><b>React 19 / 의존성 업데이트 검토</b> — 메이저 업그레이드는 Phase 1 테스트 기반 마련 후 진행.</li>
+  </ul>
+</section>
+
+<footer>
+  baduk_ratings 프로젝트 진단 보고서 · 2026-06-11 · 저장 위치: <code>docs/project-review-2026-06.html</code>
+</footer>
+
+</div>
+</body>
+</html>
