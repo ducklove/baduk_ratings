@@ -220,6 +220,7 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
   const items = buildTranslationItems(schedule, news, snapshotDate);
   const translations = new Map();
   let failedBatch = null;
+  let failedBatches = 0;
   let budgetExhausted = false;
   const startedAt = Date.now();
 
@@ -232,6 +233,10 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
         );
         break;
       }
+      if (failedBatches >= 3 && translations.size === 0) {
+        console.warn('OpenRouter translation aborted: first three batches all failed.');
+        break;
+      }
       try {
         const translatedItems = await translateBatchWithOpenRouter(batch);
         for (const item of translatedItems) {
@@ -241,8 +246,8 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
         }
       } catch (error) {
         failedBatch = error;
+        failedBatches += 1;
         console.warn(`OpenRouter translation batch skipped: ${error.message}`);
-        break;
       }
     }
 
@@ -285,7 +290,7 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
         confidence: translations.size || reuseResult.reused ? 0.72 : 0.2,
         item_count: translations.size + reuseResult.reused,
         notes: failedBatch
-          ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} Last batch failed: ${failedBatch.message}. The frontend never calls OpenRouter.`
+          ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} ${failedBatches} batch(es) failed (last: ${failedBatch.message}). The frontend never calls OpenRouter.`
           : budgetExhausted
             ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} Time budget exhausted; remaining items keep source text. The frontend never calls OpenRouter.`
             : `Build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} The frontend never calls OpenRouter.`,
