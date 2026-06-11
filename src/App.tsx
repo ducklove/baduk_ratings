@@ -1,6 +1,8 @@
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CountryStatsPanel } from './components/CountryStatsPanel';
 import { DataApiPanel } from './components/DataApiPanel';
+import { KifuPanel } from './components/KifuPanel';
 import { MethodologyPanel } from './components/MethodologyPanel';
 import { NewsPanel } from './components/NewsPanel';
 import { PredictorPanel } from './components/PredictorPanel';
@@ -11,12 +13,17 @@ import { SchedulePanel } from './components/SchedulePanel';
 import { SimulatorPanel } from './components/SimulatorPanel';
 import { SourceHubPanel } from './components/SourceHubPanel';
 import { TopBar } from './components/TopBar';
+import { TournamentPage } from './components/TournamentPage';
+import { TournamentsPanel } from './components/TournamentsPanel';
 import { useBadukData, useOwnHistory, usePlayerDetails } from './hooks/useBadukData';
+import { useKifu } from './hooks/useKifu';
+import { useTournaments } from './hooks/useTournaments';
 import {
   readHash,
   scrollToProfile,
   useFiltersInHash,
   usePlayerHashListener,
+  useTournamentHashListener,
   writePlayerHash,
 } from './hooks/useHashState';
 import { comparePlayersByMetric } from './lib/format';
@@ -68,12 +75,16 @@ export function RatingsApp({ data }: { data: RatingData }) {
     data.players.find((player) => player.names.en === 'Ke Jie')?.id ?? data.players[1].id,
   );
 
+  const [activeTournamentId, setActiveTournamentId] = useState(initialHash.tournamentId);
+
   const t = copy[language];
   const languageMeta = languages.find((item) => item.key === language) ?? languages[0];
   const sourceStatuses = data.sourceStatus?.sources ?? [];
 
   const { getDetail, requestDetail } = usePlayerDetails(data);
   const ownHistory = useOwnHistory(true);
+  const tournamentsState = useTournaments();
+  const kifu = useKifu();
 
   useEffect(() => {
     document.documentElement.lang =
@@ -97,9 +108,18 @@ export function RatingsApp({ data }: { data: RatingData }) {
   usePlayerHashListener((playerId) => {
     if (data.players.some((player) => player.id === playerId)) {
       setSelectedId(playerId);
-      scrollToProfile();
+      // Defer so the dashboard is mounted again when leaving the tournament page.
+      window.setTimeout(scrollToProfile, 0);
     }
   });
+
+  useTournamentHashListener(setActiveTournamentId);
+
+  useEffect(() => {
+    if (activeTournamentId) {
+      window.scrollTo({ top: 0 });
+    }
+  }, [activeTournamentId]);
 
   useEffect(() => {
     requestDetail(selectedId);
@@ -148,6 +168,9 @@ export function RatingsApp({ data }: { data: RatingData }) {
   const snapshotDate = data.generatedAt.slice(0, 10);
   const modelVersion =
     data.modelVersion ?? selectedComparison?.own_rating?.model_version ?? 'Baduk-R';
+  const activeTournament = activeTournamentId
+    ? (tournamentsState.tournaments.find((item) => item.id === activeTournamentId) ?? null)
+    : null;
 
   const selectPlayer = (id: string) => {
     setSelectedId(id);
@@ -168,6 +191,59 @@ export function RatingsApp({ data }: { data: RatingData }) {
     }
   };
 
+  if (activeTournamentId) {
+    return (
+      <div className="app-shell">
+        <TopBar
+          t={t}
+          language={language}
+          onLanguageChange={setLanguage}
+          query={query}
+          onQueryChange={setQuery}
+          showTournaments={tournamentsState.status === 'ready'}
+        />
+
+        <main>
+          {tournamentsState.status === 'loading' ? (
+            <div className="tournament-page">
+              <section className="panel tournament-section">
+                <div className="empty-state">{t.loadingText}</div>
+              </section>
+            </div>
+          ) : activeTournament ? (
+            <TournamentPage
+              t={t}
+              language={language}
+              nameKey={languageMeta.nameKey}
+              tournament={activeTournament}
+              curationNote={tournamentsState.curationNote}
+              players={data.players}
+              schedule={data.schedule}
+              comparisons={comparisons}
+              optionPlayers={optionPlayers}
+              snapshotDate={snapshotDate}
+              kifuEntries={kifu.entries}
+              getKifuGame={kifu.getGame}
+              requestKifuGame={kifu.requestGame}
+            />
+          ) : (
+            <div className="tournament-page">
+              <a className="back-link" href="#ratings">
+                <ArrowLeft size={15} />
+                {t.backToDashboard}
+              </a>
+              <section className="panel tournament-section">
+                <div className="empty-state">
+                  {tournamentsState.status === 'absent' ? t.tournamentsUnavailable : t.tournamentNotFound}
+                </div>
+              </section>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <TopBar
@@ -176,6 +252,7 @@ export function RatingsApp({ data }: { data: RatingData }) {
         onLanguageChange={setLanguage}
         query={query}
         onQueryChange={setQuery}
+        showTournaments={tournamentsState.status === 'ready'}
       />
 
       <main>
@@ -208,8 +285,29 @@ export function RatingsApp({ data }: { data: RatingData }) {
                 schedule={data.schedule}
               />
               <NewsPanel t={t} language={language} query={query} news={data.news} />
+              <KifuPanel
+                t={t}
+                language={language}
+                nameKey={languageMeta.nameKey}
+                entries={kifu.entries}
+                players={data.players}
+                getGame={kifu.getGame}
+                requestGame={kifu.requestGame}
+              />
               <SourceHubPanel t={t} sources={data.sourceHub} sourceStatuses={sourceStatuses} />
             </section>
+
+            {tournamentsState.status === 'ready' ? (
+              <TournamentsPanel
+                t={t}
+                language={language}
+                nameKey={languageMeta.nameKey}
+                tournaments={tournamentsState.tournaments}
+                schedule={data.schedule}
+                snapshotDate={snapshotDate}
+                players={data.players}
+              />
+            ) : null}
           </div>
 
           <aside className="side-stack">
@@ -239,6 +337,9 @@ export function RatingsApp({ data }: { data: RatingData }) {
               snapshotDate={snapshotDate}
               generatedAt={data.generatedAt}
               ownHistory={ownHistory}
+              kifuEntries={kifu.entries}
+              getKifuGame={kifu.getGame}
+              requestKifuGame={kifu.requestGame}
             />
 
             <SimulatorPanel
@@ -247,6 +348,7 @@ export function RatingsApp({ data }: { data: RatingData }) {
               nameKey={languageMeta.nameKey}
               optionPlayers={optionPlayers}
               comparisons={comparisons}
+              subtitle={t.simulatorVirtualNote}
             />
 
             <CountryStatsPanel t={t} players={data.players} comparisons={comparisons} />

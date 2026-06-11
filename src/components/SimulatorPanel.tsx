@@ -20,17 +20,26 @@ export function SimulatorPanel({
   nameKey,
   optionPlayers,
   comparisons,
+  seeds,
+  paddedIds,
+  subtitle,
 }: {
   t: Translation;
   language: Language;
   nameKey: 'en' | 'ko' | 'ja' | 'zh';
   optionPlayers: Player[];
   comparisons: Map<string, RatingComparison>;
+  /** Pre-seeded participant ids (length 4 or 8), e.g. a tournament's resolved players. */
+  seeds?: string[];
+  /** Ids among `seeds` that are top-rated padding rather than actual participants. */
+  paddedIds?: ReadonlySet<string>;
+  subtitle?: string;
 }) {
-  const [size, setSize] = useState<BracketSize>(8);
+  const [size, setSize] = useState<BracketSize>(seeds && seeds.length <= 4 ? 4 : 8);
   const defaultSlots = useMemo(
-    () => optionPlayers.slice(0, size).map((player) => player.id),
-    [optionPlayers, size],
+    () =>
+      seeds && seeds.length === size ? seeds : optionPlayers.slice(0, size).map((player) => player.id),
+    [optionPlayers, seeds, size],
   );
   const [slots, setSlots] = useState<string[]>(defaultSlots);
 
@@ -106,6 +115,7 @@ export function SimulatorPanel({
           <Trophy size={18} />
           {t.simulator}
         </h2>
+        {subtitle ? <span>{subtitle}</span> : null}
       </div>
 
       <div className="simulator-controls">
@@ -123,6 +133,7 @@ export function SimulatorPanel({
           <label key={index}>
             <span>
               {t.seedLabel} {index + 1}
+              {paddedIds?.has(id) ? <em className="seed-fill-tag">({t.seedFillTag})</em> : null}
             </span>
             <select value={id} onChange={(event) => updateSlot(index, event.target.value)}>
               {optionPlayers.map((player) => (

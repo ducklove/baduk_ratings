@@ -7,12 +7,14 @@ export function TopBar({
   onLanguageChange,
   query,
   onQueryChange,
+  showTournaments = false,
 }: {
   t: Translation;
   language: Language;
   onLanguageChange: (language: Language) => void;
   query: string;
   onQueryChange: (query: string) => void;
+  showTournaments?: boolean;
 }) {
   return (
     <header className="topbar">
@@ -24,6 +26,7 @@ export function TopBar({
         <a href="#ratings">{t.ratings}</a>
         <a href="#profile">{t.players}</a>
         <a href="#schedule">{t.events}</a>
+        {showTournaments ? <a href="#tournaments">{t.majorTournaments}</a> : null}
         <a href="#news">{t.news}</a>
         <a href="#predictor">{t.compare}</a>
         <a href="#methodology">{t.methodology}</a>
