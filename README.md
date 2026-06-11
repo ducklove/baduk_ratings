@@ -16,6 +16,8 @@ Public URL target: <https://ducklove.github.io/baduk_ratings/>
 - Tournament simulator: 4- or 8-player seeded single-elimination bracket with Monte Carlo championship probabilities.
 - Country aggregates panel: top-100 presence, top-10 mean Baduk-R, tracked players, and women in top-100 per country.
 - Player profile panel with rating comparison, rating history (Baduk-R history preferred, GoRatings series explicitly labeled), recent games, official links, and source profile.
+- Major-tournament pages (`#/tournament/{id}`): curated registry of seven international events with source-linked past winners, automatically linked schedule and per-game win probabilities, and a simulator seeded with actual participants.
+- Kifu viewer: hand-rolled SVG goban with capture-aware move navigation for collected game records; records are gathered defensively with source attribution and the feature degrades to source links when none are collectable.
 - Shareable URLs: `#/player/{id}` deep links and filter state in the hash; language is auto-detected and persisted.
 - Source hub and `source_status.json` for unavailable, empty, or legally unclear sources.
 - RSS feed (`feed.xml`), PWA manifest/service worker, OG/Twitter meta, sitemap, and a public data API panel.
@@ -44,6 +46,8 @@ Generated exports (all minified):
 - `public/data/ratings/source_status.json`
 - `public/data/ratings/comparison_latest.json`
 - `public/data/ratings/own_history.json` (daily Baduk-R history archive, merged from the deployed site so scheduled runs accumulate)
+- `public/data/tournaments.json` (curated major-tournament registry with resolved player ids and linked schedule event ids)
+- `public/data/kifu/index.json` + `public/data/kifu/{key}.json` (collected game records; optional — emitted only when records are extractable)
 - `public/feed.xml` (RSS: top-10 snapshot and biggest movers)
 
 `node scripts/update-data.mjs --from-snapshot` re-emits every derived export from the existing
