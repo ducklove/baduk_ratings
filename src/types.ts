@@ -32,6 +32,16 @@ export type HistoryPoint = {
   rating: number;
 };
 
+export type OwnHistoryPoint = HistoryPoint & {
+  rank?: number;
+};
+
+export type OwnHistoryFile = {
+  schema_version: number;
+  updated_at: string;
+  players: Record<string, OwnHistoryPoint[]>;
+};
+
 export type RecentGame = {
   date: string;
   rating: number;

@@ -141,6 +141,36 @@ export const copy = {
     reasonPrestige: 'prestige tournament',
     reasonLowConfidence: 'lower source confidence',
     reasonUnresolvedPlayers: 'unresolved players',
+    badukRTrend: 'Baduk-R trend',
+    goRatingsTrend: 'GoRatings trend',
+    loadMore: 'Load more',
+    comparisonChart: 'Rating history comparison',
+    noChartData: 'Not enough history data',
+    simulator: 'Tournament simulator',
+    bracketSize: 'Bracket size',
+    seedLabel: 'Seed',
+    championProbability: 'Championship probability',
+    finalsProbability: 'Finals-reach probability',
+    simulatorNote:
+      'Monte Carlo simulation (5,000 runs) of a single-elimination bracket seeded by Baduk-R rating, using the same win-probability model as the predictor.',
+    countryStats: 'Country overview',
+    top100Players: 'Top 100',
+    top10Mean: 'Top 10 mean',
+    trackedPlayers: 'Tracked',
+    womenTop100: 'Women in Top 100',
+    dataApi: 'Data API',
+    dataApiIntro:
+      'Public JSON endpoints behind this site. All files are static snapshots and update with each release.',
+    apiFullDataset: 'Full dataset: players, details, schedule, news, ratings',
+    apiCoreDataset: 'Core dataset without per-player details (smaller download)',
+    apiPlayerDetail: 'Per-player detail: record, recent games, history, ratings',
+    apiOwnLatest: 'Latest Baduk-R ratings table',
+    apiExternalLatest: 'Latest external ratings (GoRatings, Chinese, Korean)',
+    apiComparisonLatest: 'Latest Baduk-R vs external rating comparison',
+    apiSourceStatus: 'Source availability and terms status',
+    apiOwnHistory: 'Baduk-R rating history per player',
+    apiRssFeed: 'RSS feed of schedule and news updates',
+    rssFeed: 'RSS feed',
   },
   ko: {
     ratings: '랭킹',
@@ -274,6 +304,36 @@ export const copy = {
     reasonPrestige: '주요 대회',
     reasonLowConfidence: '소스 신뢰도 낮음',
     reasonUnresolvedPlayers: '기사 매칭 미해결',
+    badukRTrend: 'Baduk-R 추세',
+    goRatingsTrend: 'GoRatings 추세',
+    loadMore: '더 보기',
+    comparisonChart: '레이팅 추이 비교',
+    noChartData: '표시할 추이 데이터가 부족합니다',
+    simulator: '대회 시뮬레이터',
+    bracketSize: '본선 인원',
+    seedLabel: '시드',
+    championProbability: '우승 확률',
+    finalsProbability: '결승 진출 확률',
+    simulatorNote:
+      'Baduk-R 레이팅으로 시드를 배정한 싱글 엘리미네이션 대진을 몬테카를로 방식으로 5,000회 시뮬레이션합니다. 승률 모델은 예측기와 동일합니다.',
+    countryStats: '국가별 현황',
+    top100Players: 'Top 100',
+    top10Mean: 'Top 10 평균',
+    trackedPlayers: '추적 기사',
+    womenTop100: 'Top 100 여자 기사',
+    dataApi: '데이터 API',
+    dataApiIntro:
+      '이 사이트가 사용하는 공개 JSON 엔드포인트입니다. 모든 파일은 정적 스냅샷이며 릴리스마다 갱신됩니다.',
+    apiFullDataset: '전체 데이터셋: 기사, 상세, 일정, 뉴스, 레이팅',
+    apiCoreDataset: '기사 상세를 제외한 핵심 데이터셋 (용량 절감)',
+    apiPlayerDetail: '기사별 상세: 전적, 최근 대국, 추이, 레이팅',
+    apiOwnLatest: '최신 Baduk-R 레이팅 테이블',
+    apiExternalLatest: '최신 외부 레이팅 (GoRatings, 중국, 한국)',
+    apiComparisonLatest: 'Baduk-R와 외부 레이팅의 최신 비교',
+    apiSourceStatus: '소스 가용성 및 약관 상태',
+    apiOwnHistory: '기사별 Baduk-R 레이팅 히스토리',
+    apiRssFeed: '일정·뉴스 업데이트 RSS 피드',
+    rssFeed: 'RSS 피드',
   },
   ja: {
     ratings: 'ランキング',
@@ -407,6 +467,36 @@ export const copy = {
     reasonPrestige: '主要棋戦',
     reasonLowConfidence: 'ソース信頼度が低い',
     reasonUnresolvedPlayers: '棋士照合未解決',
+    badukRTrend: 'Baduk-R 推移',
+    goRatingsTrend: 'GoRatings 推移',
+    loadMore: 'さらに表示',
+    comparisonChart: 'レーティング推移比較',
+    noChartData: '表示できる推移データが不足しています',
+    simulator: '棋戦シミュレーター',
+    bracketSize: 'トーナメント人数',
+    seedLabel: 'シード',
+    championProbability: '優勝確率',
+    finalsProbability: '決勝進出確率',
+    simulatorNote:
+      'Baduk-Rレーティングでシードしたシングルエリミネーション方式を、モンテカルロ法で5,000回試行します。勝率モデルは予測と同じです。',
+    countryStats: '国・地域別概況',
+    top100Players: 'Top 100',
+    top10Mean: 'Top 10 平均',
+    trackedPlayers: '追跡棋士',
+    womenTop100: 'Top 100 女流',
+    dataApi: 'データAPI',
+    dataApiIntro:
+      '本サイトが利用する公開JSONエンドポイントです。すべて静的スナップショットで、リリースごとに更新されます。',
+    apiFullDataset: '全データセット: 棋士、詳細、日程、ニュース、レーティング',
+    apiCoreDataset: '棋士詳細を除いたコアデータセット(軽量)',
+    apiPlayerDetail: '棋士別詳細: 成績、直近対局、推移、レーティング',
+    apiOwnLatest: '最新のBaduk-Rレーティング表',
+    apiExternalLatest: '最新の外部レーティング(GoRatings、中国、韓国)',
+    apiComparisonLatest: 'Baduk-Rと外部レーティングの最新比較',
+    apiSourceStatus: 'ソースの可用性と規約状態',
+    apiOwnHistory: '棋士別Baduk-Rレーティング履歴',
+    apiRssFeed: '日程・ニュース更新のRSSフィード',
+    rssFeed: 'RSSフィード',
   },
   zhHans: {
     ratings: '排名',
@@ -539,6 +629,35 @@ export const copy = {
     reasonPrestige: '重要赛事',
     reasonLowConfidence: '来源置信度较低',
     reasonUnresolvedPlayers: '棋手未完全匹配',
+    badukRTrend: 'Baduk-R 走势',
+    goRatingsTrend: 'GoRatings 走势',
+    loadMore: '加载更多',
+    comparisonChart: '等级分走势对比',
+    noChartData: '走势数据不足',
+    simulator: '赛事模拟器',
+    bracketSize: '签表规模',
+    seedLabel: '种子',
+    championProbability: '夺冠概率',
+    finalsProbability: '进入决赛概率',
+    simulatorNote:
+      '按 Baduk-R 等级分设定种子的单败淘汰赛,使用蒙特卡洛方法模拟 5,000 次。胜率模型与预测器一致。',
+    countryStats: '国家/地区概况',
+    top100Players: 'Top 100',
+    top10Mean: 'Top 10 平均',
+    trackedPlayers: '跟踪棋手',
+    womenTop100: 'Top 100 女子',
+    dataApi: '数据 API',
+    dataApiIntro: '本站使用的公开 JSON 端点。所有文件均为静态快照,随每次发布更新。',
+    apiFullDataset: '完整数据集:棋手、详情、赛程、新闻、等级分',
+    apiCoreDataset: '不含棋手详情的核心数据集(体积更小)',
+    apiPlayerDetail: '单个棋手详情:战绩、近期对局、走势、等级分',
+    apiOwnLatest: '最新 Baduk-R 等级分表',
+    apiExternalLatest: '最新外部等级分(GoRatings、中国、韩国)',
+    apiComparisonLatest: 'Baduk-R 与外部等级分的最新对比',
+    apiSourceStatus: '来源可用性与条款状态',
+    apiOwnHistory: '棋手 Baduk-R 等级分历史',
+    apiRssFeed: '赛程与新闻更新的 RSS 订阅',
+    rssFeed: 'RSS 订阅',
   },
   zhHant: {
     ratings: '排名',
@@ -671,5 +790,93 @@ export const copy = {
     reasonPrestige: '重要賽事',
     reasonLowConfidence: '來源信賴度較低',
     reasonUnresolvedPlayers: '棋士未完全匹配',
+    badukRTrend: 'Baduk-R 走勢',
+    goRatingsTrend: 'GoRatings 走勢',
+    loadMore: '載入更多',
+    comparisonChart: '等級分走勢比較',
+    noChartData: '走勢資料不足',
+    simulator: '賽事模擬器',
+    bracketSize: '籤表規模',
+    seedLabel: '種子',
+    championProbability: '奪冠機率',
+    finalsProbability: '進入決賽機率',
+    simulatorNote:
+      '按 Baduk-R 等級分設定種子的單敗淘汰賽,使用蒙地卡羅方法模擬 5,000 次。勝率模型與預測器一致。',
+    countryStats: '國家/地區概況',
+    top100Players: 'Top 100',
+    top10Mean: 'Top 10 平均',
+    trackedPlayers: '追蹤棋士',
+    womenTop100: 'Top 100 女子',
+    dataApi: '資料 API',
+    dataApiIntro: '本站使用的公開 JSON 端點。所有檔案均為靜態快照,隨每次發布更新。',
+    apiFullDataset: '完整資料集:棋士、詳情、賽程、新聞、等級分',
+    apiCoreDataset: '不含棋士詳情的核心資料集(體積較小)',
+    apiPlayerDetail: '單一棋士詳情:戰績、近期對局、走勢、等級分',
+    apiOwnLatest: '最新 Baduk-R 等級分表',
+    apiExternalLatest: '最新外部等級分(GoRatings、中國、韓國)',
+    apiComparisonLatest: 'Baduk-R 與外部等級分的最新比較',
+    apiSourceStatus: '來源可用性與條款狀態',
+    apiOwnHistory: '棋士 Baduk-R 等級分歷史',
+    apiRssFeed: '賽程與新聞更新的 RSS 訂閱',
+    rssFeed: 'RSS 訂閱',
   },
 } satisfies Record<Language, Record<string, string>>;
+
+export type Translation = typeof copy.en;
+
+const LANGUAGE_STORAGE_KEY = 'badukr.lang';
+
+function isLanguage(value: string | null): value is Language {
+  return value === 'en' || value === 'ko' || value === 'ja' || value === 'zhHans' || value === 'zhHant';
+}
+
+function languageFromNavigator(tag: string): Language | null {
+  const lower = tag.toLowerCase();
+  if (lower.startsWith('ko')) {
+    return 'ko';
+  }
+  if (lower.startsWith('ja')) {
+    return 'ja';
+  }
+  if (lower.startsWith('zh')) {
+    if (lower.includes('hant') || lower.includes('tw') || lower.includes('hk') || lower.includes('mo')) {
+      return 'zhHant';
+    }
+    return 'zhHans';
+  }
+  if (lower.startsWith('en')) {
+    return 'en';
+  }
+  return null;
+}
+
+export function detectInitialLanguage(): Language {
+  try {
+    const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (isLanguage(stored)) {
+      return stored;
+    }
+  } catch {
+    // localStorage unavailable; fall through to navigator detection.
+  }
+
+  if (typeof navigator !== 'undefined') {
+    const candidates = [...(navigator.languages ?? []), navigator.language].filter(Boolean);
+    for (const tag of candidates) {
+      const match = languageFromNavigator(tag);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  return 'en';
+}
+
+export function persistLanguage(language: Language) {
+  try {
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  } catch {
+    // Persisting is best-effort only.
+  }
+}

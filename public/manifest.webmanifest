@@ -1,0 +1,24 @@
+{
+  "name": "Baduk-R",
+  "short_name": "Baduk-R",
+  "description": "Multilingual professional baduk/go ratings, match prediction, schedule, profiles, and news for Korea, China, Japan, and Taiwan.",
+  "start_url": "/baduk_ratings/",
+  "scope": "/baduk_ratings/",
+  "display": "standalone",
+  "background_color": "#101214",
+  "theme_color": "#0c0d0f",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "og.png",
+      "sizes": "343x361",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

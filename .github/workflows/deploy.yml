@@ -48,15 +48,26 @@ jobs:
           OPENROUTER_MODEL: qwen/qwen3.7-plus
           OPENROUTER_TRANSLATION_TIMEOUT_MS: 120000
           OPENROUTER_TRANSLATION_BATCH_SIZE: 2
-          OPENROUTER_NEWS_TRANSLATION_LIMIT: 6
-          OPENROUTER_SCHEDULE_TRANSLATION_LIMIT: 0
+          OPENROUTER_NEWS_TRANSLATION_LIMIT: 12
+          OPENROUTER_SCHEDULE_TRANSLATION_LIMIT: 24
         run: npm run generate:data
 
       - name: Validate
         run: |
           npm run lint
+          npm run test:unit
           npm test
           npm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run Python schema tests
+        run: |
+          pip install pytest
+          pytest
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
