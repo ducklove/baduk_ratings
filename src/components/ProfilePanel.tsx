@@ -1,4 +1,5 @@
-import { BarChart3, ExternalLink, Star, Trophy } from 'lucide-react';
+import { BarChart3, ExternalLink, FileText, Star, Trophy } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   formatBirthBadge,
   formatDate,
@@ -11,6 +12,8 @@ import type { Language, Translation } from '../lib/i18n';
 import { formatSigned, getPlayerDisplayName } from '../lib/rating';
 import type {
   ExternalRating,
+  KifuGameFile,
+  KifuIndexEntry,
   OwnHistoryPoint,
   Player,
   PlayerDetail,
@@ -18,6 +21,7 @@ import type {
   RatingComparisonValue,
   RatingSourceId,
 } from '../types';
+import { KifuViewer } from './KifuViewer';
 import { MiniTrend } from './MiniTrend';
 import { OverlayChart, type ChartSeries } from './OverlayChart';
 import { RegionBadge } from './RegionBadge';
@@ -104,6 +108,9 @@ export function ProfilePanel({
   snapshotDate,
   generatedAt,
   ownHistory,
+  kifuEntries,
+  getKifuGame,
+  requestKifuGame,
 }: {
   t: Translation;
   language: Language;
@@ -115,11 +122,38 @@ export function ProfilePanel({
   snapshotDate: string;
   generatedAt: string;
   ownHistory: Record<string, OwnHistoryPoint[]> | null;
+  kifuEntries: KifuIndexEntry[];
+  getKifuGame: (key: string | null | undefined) => KifuGameFile | undefined;
+  requestKifuGame: (entry: KifuIndexEntry | null | undefined) => void;
 }) {
   const ownRating = comparison?.own_rating ?? detail?.ownRating;
   const name = getPlayerDisplayName(player, nameKey);
   const birthBadge = formatBirthBadge(detail?.birthDate, generatedAt, language);
   const externalRatings = detail?.externalRatings ?? [];
+
+  const kifuByUrl = useMemo(
+    () => new Map(kifuEntries.map((entry) => [entry.source_url, entry])),
+    [kifuEntries],
+  );
+  const [openKifuKey, setOpenKifuKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Close any open record when the selected player changes.
+    setOpenKifuKey(null);
+  }, [player.id]);
+
+  const openKifuEntry = openKifuKey
+    ? kifuEntries.find((entry) => entry.key === openKifuKey)
+    : undefined;
+
+  const toggleKifu = (entry: KifuIndexEntry) => {
+    if (openKifuKey === entry.key) {
+      setOpenKifuKey(null);
+      return;
+    }
+    requestKifuGame(entry);
+    setOpenKifuKey(entry.key);
+  };
 
   const sourceValueForProfile = (source: RatingSourceId) =>
     getExternalComparison(comparison, source) ??
@@ -218,6 +252,7 @@ export function ProfilePanel({
             {(detail?.recentGames ?? []).slice(0, 5).map((game) => {
               const opponent = players.find((item) => item.id === game.opponentId);
               const opponentName = opponent ? getPlayerDisplayName(opponent, nameKey) : game.opponentName;
+              const kifuEntry = game.kifuUrl ? kifuByUrl.get(game.kifuUrl) : undefined;
               return (
                 <li key={`${game.date}-${game.opponentId}-${game.result}`}>
                   <span>
@@ -231,6 +266,17 @@ export function ProfilePanel({
                       vs {opponentName}
                     </small>
                   </span>
+                  {kifuEntry ? (
+                    <button
+                      type="button"
+                      className="kifu-open-button"
+                      onClick={() => toggleKifu(kifuEntry)}
+                      aria-expanded={openKifuKey === kifuEntry.key}
+                    >
+                      <FileText size={12} />
+                      {t.viewKifu}
+                    </button>
+                  ) : null}
                   <strong className={game.result === 'win' ? 'form-win-text' : 'form-loss-text'}>
                     {game.result === 'win' ? 'W' : 'L'}
                   </strong>
@@ -240,6 +286,20 @@ export function ProfilePanel({
           </ul>
         </div>
       </div>
+
+      {openKifuEntry ? (
+        <div className="profile-kifu">
+          <KifuViewer
+            t={t}
+            language={language}
+            entry={openKifuEntry}
+            game={getKifuGame(openKifuEntry.key)}
+            players={players}
+            nameKey={nameKey}
+            onClose={() => setOpenKifuKey(null)}
+          />
+        </div>
+      ) : null}
 
       <div className="link-row">
         <a href={player.profileUrl} target="_blank" rel="noreferrer">

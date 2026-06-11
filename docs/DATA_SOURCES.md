@@ -66,3 +66,19 @@ source text is unchanged, so only new or changed items are sent to OpenRouter.
 ## Limitations
 
 External rating source terms are not asserted as allowed unless explicitly verified. Official pages and APIs can change shape or return empty data; such cases are documented in `source_status.json` instead of fabricating data.
+
+## Tournaments
+
+`data/manual/tournaments.json` is a manually curated registry of major professional tournaments
+(names in five languages, organizer, founding year, cycle, format, reference URL, and aliases).
+Winner rows are intentionally sparse: an entry is added only when verified, and every row carries
+its own `source_url`. The pipeline resolves winner/runner-up names to local player ids and links
+schedule events by alias matching, then exports `public/data/tournaments.json`.
+
+## Kifu Records
+
+Recent games of top-rated players link to public viewer pages (currently Go4Go). At generation
+time the pipeline attempts to extract raw SGF from up to 24 linked pages under a strict time
+budget. Records are stored with source attribution and `terms_status: unknown`, reported under
+`source_id: kifu_records`, and the export is optional — when nothing is extractable the UI falls
+back to original source links. No game data is ever fabricated.

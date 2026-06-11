@@ -67,11 +67,18 @@ function gamesForPairIndex(index) {
     return [];
   }
   return [
-    { date: isoDaysAgo(2), black: a, white: b, winner: a },
-    { date: isoDaysAgo(12), black: b, white: a, winner: b },
-    { date: isoDaysAgo(40), black: a, white: b, winner: a },
-    { date: isoDaysAgo(80), black: b, white: a, winner: a },
+    { date: isoDaysAgo(2), black: a, white: b, winner: a, sgfId: 100000 + index * 10 + 1 },
+    { date: isoDaysAgo(12), black: b, white: a, winner: b, sgfId: 100000 + index * 10 + 2 },
+    { date: isoDaysAgo(40), black: a, white: b, winner: a, sgfId: 100000 + index * 10 + 3 },
+    { date: isoDaysAgo(80), black: b, white: a, winner: a, sgfId: 100000 + index * 10 + 4 },
   ];
+}
+
+const GAME_BY_SGF_ID = new Map();
+for (let index = 0; index < PLAYER_COUNT; index += 1) {
+  for (const game of gamesForPairIndex(index)) {
+    GAME_BY_SGF_ID.set(String(game.sgfId), game);
+  }
 }
 
 export function goratingsPlayerPage(id) {
@@ -95,7 +102,7 @@ export function goratingsPlayerPage(id) {
         `<td><a href="${opponent.id}.html">${opponent.name}</a></td>` +
         `<td>${opponent.rating}</td>` +
         `<td class="c"><img alt="${opponent.country} flag" src="flag.png"/></td>` +
-        `<td><a href="https://example.org/kifu/${game.date}-${game.black.id}">View game</a></td>` +
+        `<td><a href="http://www.go4go.net/go/games/sgfview/${game.sgfId}">View game</a></td>` +
         `</tr>`
       );
     })
@@ -311,6 +318,42 @@ export function cwaNewsListJson() {
   return JSON.stringify({ data: { records } });
 }
 
+export function fixtureSgf(sgfId) {
+  const game = GAME_BY_SGF_ID.get(String(sgfId));
+  if (!game) {
+    return null;
+  }
+  const letters = 'abcdefghijklmnopqrs';
+  const moves = [];
+  for (let i = 0; i < 60; i += 1) {
+    const color = i % 2 === 0 ? 'B' : 'W';
+    const x = letters[(i * 7 + 3) % 19];
+    const y = letters[Math.floor(i / 19) * 5 % 19];
+    moves.push(`;${color}[${x}${y}]`);
+  }
+  const result = game.winner.id === game.black.id ? 'B+R' : 'W+R';
+  return (
+    `(;GM[1]FF[4]SZ[19]PB[${game.black.name}]PW[${game.white.name}]` +
+    `RE[${result}]DT[${game.date}]EV[Fixture Cup]KM[6.5]${moves.join('')})`
+  );
+}
+
+export function go4goViewerPage(sgfId) {
+  const sgf = fixtureSgf(sgfId);
+  if (!sgf) {
+    return '<html><body>game not found</body></html>';
+  }
+  // SGF is embedded in a JS string with escaped newlines and quotes, like a
+  // real viewer page, so the collector must unescape before extraction.
+  const escaped = sgf.replaceAll(';B', '\\n;B').replaceAll(';W', '\\n;W');
+  return `<html><head><title>Game ${sgfId} (viewer)</title></head><body>
+<div id="board"></div>
+<script>var moveTree = (function () { return null; })();
+var sgfData = "${escaped}";
+loadViewer(sgfData);</script>
+</body></html>`;
+}
+
 export function haifongCalendarPage() {
   return '<html><body><h1>海峰棋院</h1><p>近期活動公告。</p></body></html>';
 }
@@ -374,6 +417,11 @@ export function createMockFetch() {
 
     if (url === 'https://www.haifong.org/about/calendar') {
       return respond(haifongCalendarPage());
+    }
+
+    const kifuMatch = url.match(/^http:\/\/www\.go4go\.net\/go\/games\/sgfview\/(\d+)$/);
+    if (kifuMatch) {
+      return respond(go4goViewerPage(kifuMatch[1]));
     }
 
     if (url === 'https://ducklove.github.io/baduk_ratings/data/ratings/own_history.json') {

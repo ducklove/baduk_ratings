@@ -221,6 +221,95 @@ export type SourceStatusSnapshot = {
   sources: SourceStatusItem[];
 };
 
+export type TournamentWinner = {
+  edition: number;
+  year: number;
+  winner_name: string;
+  winner_player_id: string | null;
+  runner_up_name: string;
+  runner_up_player_id: string | null;
+  source_url: string;
+};
+
+export type Tournament = {
+  id: string;
+  names: LocalizedText;
+  region: RegionCode;
+  host_country: string;
+  organizer: string;
+  founded: number;
+  cycle: string;
+  format_note: string;
+  web_url: string;
+  winners: TournamentWinner[];
+  event_ids: string[];
+};
+
+export type TournamentsFile = {
+  schema_version: number;
+  generated_at: string;
+  curation_note: string;
+  tournaments: Tournament[];
+};
+
+export type KifuStoneColor = 'b' | 'w';
+
+export type KifuMove = {
+  c?: KifuStoneColor;
+  x?: number;
+  y?: number;
+  pass?: boolean;
+};
+
+export type KifuSetupStone = {
+  c: KifuStoneColor;
+  x: number;
+  y: number;
+};
+
+export type KifuPlayerRef = {
+  name: string;
+  player_id: string | null;
+};
+
+export type KifuIndexEntry = {
+  key: string;
+  date: string;
+  black: KifuPlayerRef;
+  white: KifuPlayerRef;
+  result: string;
+  event: string;
+  move_count: number;
+  source_name: string;
+  source_url: string;
+  terms_status: TermsStatus;
+  file: string;
+};
+
+export type KifuIndexFile = {
+  schema_version: number;
+  generated_at: string;
+  source_note: string;
+  games: KifuIndexEntry[];
+};
+
+export type KifuGameFile = {
+  key: string;
+  size: number;
+  black: KifuPlayerRef;
+  white: KifuPlayerRef;
+  result: string;
+  date: string;
+  event: string;
+  komi: string;
+  moves: KifuMove[];
+  setup?: KifuSetupStone[];
+  handicap: boolean;
+  source_name: string;
+  source_url: string;
+  terms_status: TermsStatus;
+};
+
 export type RatingData = {
   schemaVersion: number;
   generatedAt: string;

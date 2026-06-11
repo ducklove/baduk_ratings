@@ -11,6 +11,7 @@ export type HashFilters = {
 
 export type HashInit = {
   playerId: string | null;
+  tournamentId: string | null;
   filters: Partial<HashFilters>;
 };
 
@@ -19,15 +20,26 @@ const MODES: ReadonlyArray<RankingMode> = ['overall', 'women', 'rising'];
 const METRICS: ReadonlyArray<RatingMetric> = ['own', 'goratings', 'chinese_qiyuan', 'korean_baduk'];
 
 const PLAYER_HASH = /^#\/player\/([^?&]+)/;
+const TOURNAMENT_HASH = /^#\/tournament\/([^?&]+)/;
 
 export function parsePlayerHash(hash: string): string | null {
   const match = PLAYER_HASH.exec(hash);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+export function parseTournamentHash(hash: string): string | null {
+  const match = TOURNAMENT_HASH.exec(hash);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function tournamentHash(tournamentId: string) {
+  return `#/tournament/${encodeURIComponent(tournamentId)}`;
+}
+
 export function readHash(): HashInit {
   const hash = typeof window === 'undefined' ? '' : window.location.hash;
   const playerId = parsePlayerHash(hash);
+  const tournamentId = parseTournamentHash(hash);
   const filters: Partial<HashFilters> = {};
 
   const queryStart = hash.indexOf('?');
@@ -55,7 +67,7 @@ export function readHash(): HashInit {
     }
   }
 
-  return { playerId, filters };
+  return { playerId, tournamentId, filters };
 }
 
 export function encodeFiltersHash(filters: HashFilters) {
@@ -106,6 +118,10 @@ export function useFiltersInHash(filters: HashFilters) {
     }
 
     lastEncodedRef.current = encoded;
+    if (parseTournamentHash(window.location.hash)) {
+      // Keep tournament deep links intact while the tournament page is open.
+      return;
+    }
     replaceHash(encoded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.country, filters.mode, filters.metric, filters.query]);
@@ -124,6 +140,25 @@ export function usePlayerHashListener(onPlayer: (playerId: string) => void) {
       if (playerId) {
         handlerRef.current(playerId);
       }
+    };
+
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+}
+
+/**
+ * Reacts to every hash change with the current #/tournament/{id} value
+ * (or null when the hash points elsewhere), so browser back/forward
+ * naturally enters and leaves the tournament page.
+ */
+export function useTournamentHashListener(onChange: (tournamentId: string | null) => void) {
+  const handlerRef = useRef(onChange);
+  handlerRef.current = onChange;
+
+  useEffect(() => {
+    const onHashChange = () => {
+      handlerRef.current(parseTournamentHash(window.location.hash));
     };
 
     window.addEventListener('hashchange', onHashChange);

@@ -139,6 +139,7 @@ export async function writeSnapshotOutputs({
   unresolvedExternalRatings = [],
   ownHistory,
   feedXml,
+  tournamentsExport,
 }) {
   const ratingsOutDir = path.join(dataDir, 'ratings');
   const playersOutDir = path.join(dataDir, 'players');
@@ -195,6 +196,9 @@ export async function writeSnapshotOutputs({
       'utf8',
     ),
     writeFile(path.join(ratingsOutDir, 'own_history.json'), jsonOut(ownHistory), 'utf8'),
+    ...(tournamentsExport
+      ? [writeFile(path.join(dataDir, 'tournaments.json'), jsonOut(tournamentsExport), 'utf8')]
+      : []),
     writeFile(feedFile, feedXml, 'utf8'),
   ]);
 }
