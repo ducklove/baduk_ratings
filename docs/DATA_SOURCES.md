@@ -42,11 +42,26 @@ Generated news rows include `content_type`, `curation_score`, and `curation_reas
 
 ## Exports
 
-- `public/data/baduk-data.json`
+- `public/data/baduk-data.json` (full snapshot, kept for compatibility)
+- `public/data/baduk-data-core.json` (full snapshot with empty `playerDetails`)
+- `public/data/players/{id}.json` (per-player detail split, one file per enriched profile)
 - `public/data/ratings/own_latest.json`
 - `public/data/ratings/external_latest.json`
 - `public/data/ratings/source_status.json`
 - `public/data/ratings/comparison_latest.json`
+- `public/data/ratings/own_history.json` (daily Baduk-R rating/rank archive per player; on each run the deployed copy is fetched and merged first so scheduled CI runs accumulate history)
+- `public/feed.xml` (RSS 2.0 with the top-10 snapshot and biggest rating movers)
+
+All exports are minified. `node scripts/update-data.mjs --from-snapshot` re-emits every derived
+export from the existing `baduk-data.json` without any network access.
+
+## Failure Behavior
+
+If the GoRatings rating list fetch or parse fails (or yields too few players), the pipeline reuses
+players, profiles, and own ratings from the previous deployed or local snapshot, marks
+`goratings_rating_list` as `unavailable` with `stale: true`, and continues refreshing schedule,
+news, and external ratings. Build-time translations are reused from the previous snapshot when the
+source text is unchanged, so only new or changed items are sent to OpenRouter.
 
 ## Limitations
 
