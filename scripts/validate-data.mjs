@@ -1,11 +1,17 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
-const dataFile = path.join(rootDir, 'public', 'data', 'baduk-data.json');
-const ratingsDir = path.join(rootDir, 'public', 'data', 'ratings');
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(rootDir, 'public', 'data');
+const dataFile = path.join(dataDir, 'baduk-data.json');
+const ratingsDir = path.join(dataDir, 'ratings');
+const coreFile = path.join(dataDir, 'baduk-data-core.json');
+const playersDir = path.join(dataDir, 'players');
+const feedFile = path.join(dataDir, '..', 'feed.xml');
 
 function assert(condition, message) {
   if (!condition) {
@@ -135,6 +141,41 @@ assert(
   'source_status.json missing available Chinese editorial news source',
 );
 assert(comparisonLatest.comparisons.length === data.ratingComparisons.length, 'comparison_latest.json is out of sync');
+
+const core = await readJson(coreFile);
+assert(core.schemaVersion === data.schemaVersion, 'Core file schema version mismatch');
+assert(core.players.length === data.players.length, 'Core file player count mismatch');
+assert(
+  core.playerDetails && typeof core.playerDetails === 'object' && Object.keys(core.playerDetails).length === 0,
+  'Core file must carry empty playerDetails',
+);
+
+const detailIds = Object.keys(data.playerDetails);
+const playerFiles = new Set((await readdir(playersDir)).filter((file) => file.endsWith('.json')));
+assert(playerFiles.size === detailIds.length, 'players/ directory must have one file per playerDetail');
+for (const id of detailIds) {
+  assert(playerFiles.has(`${id}.json`), `Missing per-player export players/${id}.json`);
+}
+
+const ownHistory = await readJson(path.join(ratingsDir, 'own_history.json'));
+assert(ownHistory.schema_version === 1, 'own_history.json schema_version must be 1');
+assert(typeof ownHistory.updated_at === 'string' && ownHistory.updated_at.length > 0, 'own_history.json missing updated_at');
+assert(ownHistory.players && typeof ownHistory.players === 'object', 'own_history.json missing players map');
+assert(Object.keys(ownHistory.players).length > 0, 'own_history.json has no player history');
+for (const [playerId, points] of Object.entries(ownHistory.players)) {
+  assert(Array.isArray(points) && points.length > 0, `own_history.json empty series for ${playerId}`);
+  assert(points.length <= 400, `own_history.json series too long for ${playerId}`);
+  for (const point of points) {
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(point.date), `own_history.json bad date for ${playerId}`);
+    assert(Number.isFinite(point.rating), `own_history.json bad rating for ${playerId}`);
+    assert(Number.isFinite(point.rank), `own_history.json bad rank for ${playerId}`);
+  }
+}
+
+const feedXml = await readFile(feedFile, 'utf8');
+assert(feedXml.trim().length > 0, 'feed.xml must not be empty');
+assert(feedXml.includes('<rss'), 'feed.xml must be an RSS document');
+assert(feedXml.includes('<item>'), 'feed.xml must contain items');
 
 console.log(
   `Data OK: ${data.players.length} players, ${Object.keys(data.playerDetails).length} profiles, ${data.schedule.length} schedule events, ${data.externalRatings.length} external ratings.`,
