@@ -12,6 +12,10 @@ const OPENROUTER_TRANSLATION_BATCH_SIZE = readPositiveIntEnv('OPENROUTER_TRANSLA
 const OPENROUTER_TRANSLATION_TIMEOUT_MS = readPositiveIntEnv('OPENROUTER_TRANSLATION_TIMEOUT_MS', 45000);
 const OPENROUTER_NEWS_TRANSLATION_LIMIT = readPositiveIntEnv('OPENROUTER_NEWS_TRANSLATION_LIMIT', 36);
 const OPENROUTER_SCHEDULE_TRANSLATION_LIMIT = readNonNegativeIntEnv('OPENROUTER_SCHEDULE_TRANSLATION_LIMIT', 48);
+// Hard wall-clock budget for the whole translation stage so a slow model can
+// never push generate:data past the CI step timeout; remaining batches are
+// skipped and the snapshot ships with partial localization.
+const OPENROUTER_TRANSLATION_BUDGET_MS = readPositiveIntEnv('OPENROUTER_TRANSLATION_BUDGET_MS', 480000);
 
 function openRouterApiKey() {
   return process.env.OPENROUTER_API_KEY?.trim();
@@ -216,9 +220,18 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
   const items = buildTranslationItems(schedule, news, snapshotDate);
   const translations = new Map();
   let failedBatch = null;
+  let budgetExhausted = false;
+  const startedAt = Date.now();
 
   try {
     for (const batch of chunk(items, OPENROUTER_TRANSLATION_BATCH_SIZE)) {
+      if (Date.now() - startedAt > OPENROUTER_TRANSLATION_BUDGET_MS) {
+        budgetExhausted = true;
+        console.warn(
+          `OpenRouter translation budget of ${OPENROUTER_TRANSLATION_BUDGET_MS}ms exhausted; remaining batches skipped.`,
+        );
+        break;
+      }
       try {
         const translatedItems = await translateBatchWithOpenRouter(batch);
         for (const item of translatedItems) {
@@ -273,7 +286,9 @@ export async function translatePublicContent(schedule, news, generatedAt, previo
         item_count: translations.size + reuseResult.reused,
         notes: failedBatch
           ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} Last batch failed: ${failedBatch.message}. The frontend never calls OpenRouter.`
-          : `Build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} The frontend never calls OpenRouter.`,
+          : budgetExhausted
+            ? `Partial build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} Time budget exhausted; remaining items keep source text. The frontend never calls OpenRouter.`
+            : `Build-time schedule/news localization via ${OPENROUTER_MODEL}. ${reusedNote} The frontend never calls OpenRouter.`,
       }),
     };
   } catch (error) {
