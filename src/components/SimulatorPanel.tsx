@@ -2,12 +2,13 @@ import { Trophy } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { getPlayerOptionLabel } from '../lib/format';
 import type { Language, Translation } from '../lib/i18n';
-import { getPlayerDisplayName, winProbability } from '../lib/rating';
+import { getPlayerDisplayName, seriesWinProbability, winProbability } from '../lib/rating';
 import type { Player, RatingComparison } from '../types';
 
 const ITERATIONS = 5000;
 
 type BracketSize = 4 | 8;
+type FinalsBestOf = 1 | 3 | 5;
 
 /** Seeded single-elimination order (0-indexed seeds): 1v8,4v5,3v6,2v7 / 1v4,2v3. */
 function bracketOrder(size: BracketSize): number[] {
@@ -36,6 +37,7 @@ export function SimulatorPanel({
   subtitle?: string;
 }) {
   const [size, setSize] = useState<BracketSize>(seeds && seeds.length <= 4 ? 4 : 8);
+  const [finalsBestOf, setFinalsBestOf] = useState<FinalsBestOf>(1);
   const defaultSlots = useMemo(
     () =>
       seeds && seeds.length === size ? seeds : optionPlayers.slice(0, size).map((player) => player.id),
@@ -91,7 +93,9 @@ export function SimulatorPanel({
         for (let index = 0; index < round.length; index += 2) {
           const seedA = round[index];
           const seedB = round[index + 1];
-          const probability = winProbability({ ratingA: ratings[seedA], ratingB: ratings[seedB] });
+          const single = winProbability({ ratingA: ratings[seedA], ratingB: ratings[seedB] });
+          const probability =
+            round.length === 2 ? seriesWinProbability(single, finalsBestOf) : single;
           next.push(Math.random() < probability ? seedA : seedB);
         }
         round = next;
@@ -106,7 +110,7 @@ export function SimulatorPanel({
         finals: finalsCounts[index] / ITERATIONS,
       }))
       .sort((left, right) => right.champion - left.champion);
-  }, [comparisons, playerById, slots]);
+  }, [comparisons, finalsBestOf, playerById, slots]);
 
   return (
     <section className="panel simulator-panel" id="simulator">
@@ -124,6 +128,17 @@ export function SimulatorPanel({
           <select value={size} onChange={(event) => setSize(Number(event.target.value) as BracketSize)}>
             <option value={4}>4</option>
             <option value={8}>8</option>
+          </select>
+        </label>
+        <label>
+          <span>{t.finalsFormat}</span>
+          <select
+            value={finalsBestOf}
+            onChange={(event) => setFinalsBestOf(Number(event.target.value) as FinalsBestOf)}
+          >
+            <option value={1}>{t.singleGame}</option>
+            <option value={3}>{t.bestOf3}</option>
+            <option value={5}>{t.bestOf5}</option>
           </select>
         </label>
       </div>
