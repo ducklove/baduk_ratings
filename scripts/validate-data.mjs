@@ -132,14 +132,21 @@ const comparisonLatest = await readJson(path.join(ratingsDir, 'comparison_latest
 assert(ownLatest.own_ratings.length === data.ownRatings.length, 'own_latest.json is out of sync');
 assert(externalLatest.external_ratings.length === data.externalRatings.length, 'external_latest.json is out of sync');
 assert(sourceStatus.sources.length >= 6, 'source_status.json missing source rows');
-assert(
-  sourceStatus.sources.some((source) => source.source_id === 'nihon_columns' && source.status === 'available'),
-  'source_status.json missing available Nihon Ki-in column source',
-);
-assert(
-  sourceStatus.sources.some((source) => source.source_id === 'cwa_editorial_news' && source.status === 'available'),
-  'source_status.json missing available Chinese editorial news source',
-);
+
+// News sources may be temporarily down; the pipeline then carries items over
+// from the previous snapshot and documents the outage in source_status.json.
+// Fail only when the source is unhealthy AND no items for its region survived.
+function assertNewsSourceOrFallback(sourceId, region, label) {
+  const row = sourceStatus.sources.find((source) => source.source_id === sourceId);
+  assert(row, `source_status.json missing ${label} source row`);
+  const documentedOutage = ['available_empty', 'unavailable', 'parse_failed'].includes(row.status);
+  assert(
+    row.status === 'available' || (documentedOutage && newsRegions.has(region)),
+    `${label} source is '${row.status}' and no ${region} news items were carried over`,
+  );
+}
+assertNewsSourceOrFallback('nihon_columns', 'jp', 'Nihon Ki-in column');
+assertNewsSourceOrFallback('cwa_editorial_news', 'cn', 'Chinese editorial news');
 assert(comparisonLatest.comparisons.length === data.ratingComparisons.length, 'comparison_latest.json is out of sync');
 
 const core = await readJson(coreFile);
