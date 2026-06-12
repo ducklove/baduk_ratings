@@ -177,6 +177,49 @@ test('kifu collection degrades to available_empty when go4go is down, without fi
   );
 });
 
+test('news source outage carries previous columns over and still validates', async (t) => {
+  const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'baduk-news-fallback-'));
+  t.after(async () => {
+    setFetchImplementation(null);
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  // First run primes the local snapshot with healthy sources.
+  setFetchImplementation(createMockFetch());
+  const dataDir = path.join(tmpDir, 'data');
+  await runPipeline({ dataDir });
+
+  // Second run: the Nihon Ki-in column Atom feed fails.
+  const mockFetch = createMockFetch();
+  setFetchImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.includes('nihonkiin.or.jp/etc/atom.xml')) {
+      return new Response('feed down', { status: 503 });
+    }
+    return mockFetch(input, init);
+  });
+  const data = await runPipeline({ dataDir });
+
+  const columnStatus = data.sourceStatus.sources.find(
+    (source) => source.source_id === 'nihon_columns',
+  );
+  assert.notEqual(columnStatus.status, 'available');
+  assert.ok(
+    data.news.some((item) => item.region === 'jp'),
+    'previous-snapshot Japanese columns must be carried over',
+  );
+
+  const validator = spawnSync(process.execPath, [validatorPath], {
+    env: { ...process.env, DATA_DIR: dataDir },
+    encoding: 'utf8',
+  });
+  assert.equal(
+    validator.status,
+    0,
+    `validator failed during news source outage:\n${validator.stdout}\n${validator.stderr}`,
+  );
+});
+
 test('pipeline falls back to the previous snapshot when GoRatings is down', async (t) => {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'baduk-fallback-'));
   t.after(async () => {
